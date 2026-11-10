@@ -12,6 +12,7 @@
 #include <mutex>
 
 class PipeWireRecord;
+class QTimer;
 
 namespace catchypills::capture {
 
@@ -112,6 +113,8 @@ Q_SIGNALS:
     void screenshotCaptured(const QString &savedPath, const QSize &dimensions);
     void captureFailed(const QString &reason);
     void recordingChanged(bool recording);
+    void recordingStopping();
+    void releaseOverlayRequested();
     void savingChanged(bool saving);
     void saveDialogOpenChanged(bool open);
     void recordingFinished(const QString &outputPath);
@@ -169,6 +172,7 @@ private:
 
     CaptureImageProvider *m_imageProvider{nullptr};
     PipeWireRecord *m_recorder{nullptr};
+    QTimer *m_stopWatchdog{nullptr};
     RecordingPreset m_activePreset{RecordingPreset::Mp4H264};
     PortalStep m_portalStep{PortalStep::Idle};
     QRect m_pendingCropRect;
@@ -184,9 +188,11 @@ private:
     QString m_lastStatus;
     int m_backdropRevision{0};
     bool m_recording{false};
+    bool m_recorderStarted{false};
     bool m_saving{false};
     bool m_saveDialogOpen{false};
     bool m_stopRequested{false};
+    bool m_finalizing{false};
     bool m_croppingInProgress{false};
     bool m_autoCopyEnabled{true};
     bool m_pendingSaveFile{true};

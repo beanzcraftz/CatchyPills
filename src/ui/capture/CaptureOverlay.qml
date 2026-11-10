@@ -39,7 +39,7 @@ Window {
     }
 
     function syncRecordingMask() {
-        if (!hasOverlayLayer || (!isRecording && !isSaving)) {
+        if (!root.visible || !hasOverlayLayer || (!isRecording && !isSaving)) {
             return
         }
         if (typeof captureCoordinator !== "undefined"
@@ -131,13 +131,23 @@ Window {
         if (root.isSaving) {
             return
         }
-        // Keep CaptureOverlay visible so the toolbar transitions immediately to disabled
-        // "Saving..." while KPipeWire flushes and the native Save As dialog is open.
         captureCoordinator.stopRecording()
     }
 
     Connections {
         target: captureCoordinator
+        function onRecordingStopping() {
+            root.isRecording = false
+        }
+        function onReleaseOverlayRequested() {
+            if (root.visible || root.recordingFlowActive || root.isRecording || root.isSaving) {
+                root.resetState()
+                if (root.hasOverlayLayer) {
+                    overlayLayerController.restoreFullscreenOverlay()
+                }
+                root.visible = false
+            }
+        }
         function onRecordingChanged(active) {
             if (root.recordingFlowActive && !active) {
                 root.isRecording = false

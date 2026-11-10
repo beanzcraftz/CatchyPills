@@ -150,6 +150,17 @@ bool Application::initialize()
                         overlayWindow->raise();
                         overlayWindow->requestActivate();
                     });
+            connect(m_captureCoordinator,
+                    &capture::CaptureCoordinator::releaseOverlayRequested,
+                    overlayWindow,
+                    [this, overlayWindow]() {
+                        if (overlayWindow->isVisible()) {
+                            overlayWindow->hide();
+                        }
+                        if (m_overlayLayer) {
+                            m_overlayLayer->restoreFullscreenOverlay();
+                        }
+                    });
         }
     }
 
@@ -157,13 +168,6 @@ bool Application::initialize()
             &capture::CaptureCoordinator::saveDialogOpenChanged,
             this,
             [this](bool open) {
-                if (m_overlayLayer) {
-                    if (open) {
-                        m_overlayLayer->setTemporaryDialogBehind(true);
-                    } else if (!m_captureCoordinator->isSaving()) {
-                        m_overlayLayer->restoreFullscreenOverlay();
-                    }
-                }
                 if (m_islandLayer) {
                     if (open) {
                         m_islandLayer->setTemporaryDialogBehind(true);

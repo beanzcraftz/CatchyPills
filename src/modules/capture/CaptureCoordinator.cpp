@@ -25,6 +25,7 @@
 #include <QPolygonF>
 #include <QProcess>
 #include <QStandardPaths>
+#include <QTimer>
 #include <QUrl>
 #include <QUuid>
 #include <QVariantMap>
@@ -510,8 +511,13 @@ void CaptureCoordinator::startRegionRecording(int x, int y, int width, int heigh
 void CaptureCoordinator::startRecording(RecordingPreset preset, const QRect &cropRect)
 {
     Q_UNUSED(preset)
-    if (m_recording || m_saving || m_saveDialogOpen || m_croppingInProgress || m_portalStep != PortalStep::Idle) {
+    if (m_recording || m_saving || m_saveDialogOpen || m_finalizing || m_croppingInProgress
+        || m_portalStep != PortalStep::Idle) {
         return;
+    }
+
+    if (m_stopWatchdog) {
+        m_stopWatchdog->stop();
     }
 
     m_activePreset = RecordingPreset::Mp4H264;
@@ -519,6 +525,8 @@ void CaptureCoordinator::startRecording(RecordingPreset preset, const QRect &cro
     m_streamPos = QPoint(0, 0);
     m_streamSize = QSize();
     m_stopRequested = false;
+    m_finalizing = false;
+    m_recorderStarted = false;
 
     m_activeOutputPath.clear();
     m_rawRecordingPath = buildTempVideoPath();
@@ -531,22 +539,24 @@ void CaptureCoordinator::startRecording(RecordingPreset preset, const QRect &cro
                 return;
             }
             const auto st = m_recorder->state();
-            if (st == PipeWireBaseEncodedStream::Idle && m_stopRequested) {
-                m_stopRequested = false;
-                m_recording = false;
-                Q_EMIT recordingChanged(false);
-                closePortalSession();
+            if (st == PipeWireBaseEncodedStream::Idle && m_stopRequested && !m_finalizing) {
                 finalizeRecordedVideo();
             }
         });
         connect(m_recorder, &PipeWireBaseEncodedStream::errorFound, this, [this](const QString &err) {
+            if (m_stopWatchdog) {
+                m_stopWatchdog->stop();
+            }
             m_stopRequested = false;
+            m_finalizing = false;
+            m_recorderStarted = false;
             m_recording = false;
             Q_EMIT recordingChanged(false);
             setSaveDialogOpen(false);
             setSaving(false);
             closePortalSession();
             cleanupRawRecordingFile();
+            Q_EMIT releaseOverlayRequested();
             setStatus(err);
             Q_EMIT captureFailed(err);
         });
@@ -566,35 +576,53 @@ void CaptureCoordinator::startRecording(RecordingPreset preset, const QRect &cro
 
 void CaptureCoordinator::stopRecording()
 {
-    if (!m_recording || m_stopRequested || m_saving) {
+    if (!m_recording || m_stopRequested || m_finalizing) {
         return;
     }
 
     m_stopRequested = true;
-    setStatus(QStringLiteral("Saving..."));
+    m_finalizing = false;
+    setSaving(true);
+    setStatus(QStringLiteral("Stopping recording..."));
+    Q_EMIT recordingStopping();
+    // Release/hide the LayerShell CaptureOverlay before any Save As dialog opens so
+    // LayerOverlay/LayerTop never occludes or blocks XDG Portal / QFileDialog windows.
+    Q_EMIT releaseOverlayRequested();
 
-    if (m_recorder && m_recorder->isActive()) {
-        setSaving(true);
-        m_recorder->stop();
-    } else if (m_portalStep != PortalStep::Idle) {
-        // Portal flow hasn't started the KPipeWire encoder yet.
+    if (m_portalStep != PortalStep::Idle || !m_recorderStarted || !m_recorder) {
+        // Portal flow or PipeWire setup had not started encoding yet.
         m_portalStep = PortalStep::Idle;
         m_stopRequested = false;
+        m_recorderStarted = false;
         m_recording = false;
         Q_EMIT recordingChanged(false);
         setSaving(false);
         closePortalSession();
         cleanupRawRecordingFile();
         Q_EMIT captureWorkflowFinished();
-    } else if (!m_croppingInProgress) {
-        m_stopRequested = false;
-        m_recording = false;
-        Q_EMIT recordingChanged(false);
-        setSaving(false);
-        closePortalSession();
-        cleanupRawRecordingFile();
-        Q_EMIT captureWorkflowFinished();
+        return;
     }
+
+    // In KPipeWire >= 6.4, setActive(false) is deprecated because it calls stop() + QThread::wait()
+    // synchronously on the GUI thread. Use non-blocking stop() and finalize via stateChanged(Idle),
+    // backed by a 1500 ms watchdog in case Idle was already emitted or the stream closed early.
+    m_recorder->stop();
+
+    if (m_recorder->state() == PipeWireBaseEncodedStream::Idle) {
+        finalizeRecordedVideo();
+        return;
+    }
+
+    if (!m_stopWatchdog) {
+        m_stopWatchdog = new QTimer(this);
+        m_stopWatchdog->setSingleShot(true);
+        connect(m_stopWatchdog, &QTimer::timeout, this, [this]() {
+            if (m_stopRequested && !m_finalizing) {
+                finalizeRecordedVideo();
+            }
+        });
+    }
+    m_stopWatchdog->start(1500);
 }
 
 void CaptureCoordinator::requestPortalScreenCastSession()
@@ -929,14 +957,27 @@ void CaptureCoordinator::beginPipeWireRecording(
     QT_WARNING_DISABLE_DEPRECATED
     m_recorder->setNodeId(nodeId);
     QT_WARNING_POP
+    m_recorderStarted = true;
     m_recorder->start();
     setStatus(QStringLiteral("Recording MP4"));
 }
 
 void CaptureCoordinator::finalizeRecordedVideo()
 {
+    if (m_finalizing) {
+        return;
+    }
+    m_finalizing = true;
+    m_stopRequested = false;
+    m_recorderStarted = false;
+    if (m_stopWatchdog) {
+        m_stopWatchdog->stop();
+    }
+
+    closePortalSession();
     m_recording = false;
     Q_EMIT recordingChanged(false);
+    Q_EMIT releaseOverlayRequested();
 
     if (m_rawRecordingPath.isEmpty()
         || !QFileInfo::exists(m_rawRecordingPath)
@@ -944,16 +985,33 @@ void CaptureCoordinator::finalizeRecordedVideo()
         cleanupRawRecordingFile();
         setSaveDialogOpen(false);
         setSaving(false);
+        m_finalizing = false;
         setStatus(QStringLiteral("No video frames recorded"));
+        QProcess::startDetached(QStringLiteral("notify-send"), {
+            QStringLiteral("-a"), QStringLiteral("CatchyPills"),
+            QStringLiteral("-i"), QStringLiteral("dialog-warning"),
+            QStringLiteral("CatchyPills"),
+            QStringLiteral("Recording stopped before any video frames were captured."),
+        });
         Q_EMIT captureFailed(m_lastStatus);
+        Q_EMIT captureWorkflowFinished();
         return;
     }
 
-    promptSaveRecordingDialog();
+    setSaving(true);
+    setStatus(QStringLiteral("Saving..."));
+    setSaveDialogOpen(true);
+
+    // Yield briefly after releasing/hiding the LayerShell overlay so Wayland commits
+    // the surface unmap cleanly before opening the non-blocking Save As dialog.
+    QTimer::singleShot(35, this, &CaptureCoordinator::promptSaveRecordingDialog);
 }
 
 void CaptureCoordinator::promptSaveRecordingDialog()
 {
+    if (!m_finalizing) {
+        return;
+    }
     setSaving(true);
     setStatus(QStringLiteral("Saving..."));
     setSaveDialogOpen(true);
@@ -1131,6 +1189,8 @@ void CaptureCoordinator::openFallbackSaveDialog(const QString &defaultFilePath)
     });
 
     dialog->open();
+    dialog->raise();
+    dialog->activateWindow();
 }
 
 void CaptureCoordinator::processRecordedVideoToDestination(const QString &destinationPath)
@@ -1144,6 +1204,7 @@ void CaptureCoordinator::processRecordedVideoToDestination(const QString &destin
     if (m_rawRecordingPath.isEmpty() || !QFileInfo::exists(m_rawRecordingPath)) {
         cleanupRawRecordingFile();
         setSaving(false);
+        m_finalizing = false;
         setStatus(QStringLiteral("Recorded stream file missing"));
         Q_EMIT captureFailed(m_lastStatus);
         return;
@@ -1173,6 +1234,7 @@ void CaptureCoordinator::processRecordedVideoToDestination(const QString &destin
         const bool moved = moveFileSafely(m_rawRecordingPath, m_activeOutputPath);
         cleanupRawRecordingFile();
         setSaving(false);
+        m_finalizing = false;
         if (!moved) {
             setStatus(QStringLiteral("Failed to write MP4 recording"));
             Q_EMIT captureFailed(m_lastStatus);
@@ -1207,6 +1269,7 @@ void CaptureCoordinator::processRecordedVideoToDestination(const QString &destin
         const bool moved = moveFileSafely(m_rawRecordingPath, m_activeOutputPath);
         cleanupRawRecordingFile();
         setSaving(false);
+        m_finalizing = false;
         if (!moved) {
             setStatus(QStringLiteral("Failed to encode MP4 recording"));
             Q_EMIT captureFailed(m_lastStatus);
@@ -1232,6 +1295,7 @@ void CaptureCoordinator::processRecordedVideoToDestination(const QString &destin
         }
         cleanupRawRecordingFile();
         setSaving(false);
+        m_finalizing = false;
 
         if (!ok) {
             setStatus(QStringLiteral("Failed to save cropped MP4 recording"));
@@ -1264,6 +1328,7 @@ void CaptureCoordinator::cancelPendingSave()
     m_activeOutputPath.clear();
     setSaveDialogOpen(false);
     setSaving(false);
+    m_finalizing = false;
     setStatus(QStringLiteral("Recording discarded"));
     Q_EMIT captureWorkflowFinished();
 }
