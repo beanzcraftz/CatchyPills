@@ -16,6 +16,10 @@ Window {
     property bool dragActive: false
 
     onDragActiveChanged: {
+        if (dragActive) {
+            hoverExpandDelay.stop()
+            collapseDelay.stop()
+        }
         if (hasLayer) {
             layerController.setDragActive(dragActive)
         }
@@ -31,6 +35,7 @@ Window {
     Connections {
         target: captureCoordinator
         function onRegionOverlayRequested() {
+            dragExitLock.stop()
             hoverExpandDelay.stop()
             root.dragActive = false
             pillContainer.state = "collapsed"
@@ -48,15 +53,32 @@ Window {
         repeat: false
     }
 
+    // Debounce Wayland DropArea exit transitions so animation geometry shifts
+    // and inner FileShelfView DropArea handoffs never flicker dragActive off.
+    Timer {
+        id: dragExitLock
+        interval: 140
+        repeat: false
+        onTriggered: {
+            if (!masterDropArea.containsDrag && !dashboard.shelfContainsDrag) {
+                root.dragActive = false
+                if (!islandHover.hovered && !dashboard.searchInputFocused) {
+                    collapseDelay.restart()
+                }
+            }
+        }
+    }
+
     // Master Wayland DropArea spanning the entire 760x460 canvas so external file
-    // drags arriving on the collapsed pill immediately unlock the full surface mask
-    // and transition smoothly into the File Shelf tab without wl_data_device.leave.
+    // drags arriving on the collapsed pill lock dragActive = true and unlock the
+    // full surface mask without wl_data_device.leave collapse loops.
     DropArea {
         id: masterDropArea
         anchors.fill: parent
 
         onEntered: function(drag) {
             drag.acceptProposedAction()
+            dragExitLock.stop()
             hoverExpandDelay.stop()
             collapseDelay.stop()
             root.dragActive = true
@@ -64,14 +86,18 @@ Window {
             pillContainer.state = "expanded"
         }
 
+        onPositionChanged: function(drag) {
+            drag.acceptProposedAction()
+        }
+
         onExited: {
             if (!dashboard.shelfContainsDrag) {
-                root.dragActive = false
-                collapseDelay.restart()
+                dragExitLock.restart()
             }
         }
 
         onDropped: function(drop) {
+            dragExitLock.stop()
             dashboard.acceptShelfDrop(drop)
             root.dragActive = false
         }
@@ -129,7 +155,9 @@ Window {
                         }
                     } else {
                         hoverExpandDelay.stop()
-                        collapseDelay.restart()
+                        if (!root.dragActive) {
+                            collapseDelay.restart()
+                        }
                     }
                 }
             }
@@ -228,12 +256,16 @@ Window {
                 opacity: pillContainer.state === "collapsed" ? 1.0 : 0.0
                 recordingActive: captureCoordinator.recording
                 daemonOnline: appController.daemonOnline
+                externalDragActive: root.dragActive
                 tickerText: daemonClient.latestClipPreview.length > 0
                             ? daemonClient.latestClipPreview
                             : "CatchyPills"
 
                 onDragPressed: hoverExpandDelay.stop()
                 onDragStarted: {
+                    if (root.dragActive) {
+                        return
+                    }
                     hoverExpandDelay.stop()
                     collapseDelay.stop()
                     pillContainer.state = "collapsed"
@@ -242,7 +274,7 @@ Window {
                     }
                 }
                 onDragMoved: function(dx, dy) {
-                    if (!root.hasLayer || dragThrottle.running) {
+                    if (!root.hasLayer || root.dragActive || dragThrottle.running) {
                         return
                     }
                     var stepX = Math.round(dx)
@@ -281,15 +313,24 @@ Window {
                 anchors.fill: parent
                 visible: pillContainer.height >= 96
                 opacity: pillContainer.state === "expanded" ? 1.0 : 0.0
-                onCollapseRequested: collapseDelay.restart()
-                onShelfDropCompleted: root.dragActive = false
-                onShelfDragHoverChanged: {
-                    if (!masterDropArea.containsDrag && !dashboard.shelfContainsDrag) {
-                        root.dragActive = false
+                onCollapseRequested: {
+                    if (!root.dragActive) {
                         collapseDelay.restart()
-                    } else {
+                    }
+                }
+                onShelfDropCompleted: {
+                    dragExitLock.stop()
+                    root.dragActive = false
+                }
+                onShelfDragHoverChanged: {
+                    if (masterDropArea.containsDrag || dashboard.shelfContainsDrag) {
+                        dragExitLock.stop()
+                        hoverExpandDelay.stop()
                         collapseDelay.stop()
                         root.dragActive = true
+                        pillContainer.state = "expanded"
+                    } else {
+                        dragExitLock.restart()
                     }
                 }
 

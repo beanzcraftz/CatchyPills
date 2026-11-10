@@ -1,3 +1,4 @@
+pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
@@ -10,7 +11,7 @@ Item {
     id: root
 
     property int activeTab: 0 // 0 = Clipboard, 1 = File Shelf, 2 = Search, 3 = Capture
-    readonly property bool searchInputFocused: searchInput.activeFocus
+    readonly property bool searchInputFocused: searchPaletteView.inputFocused
     readonly property bool shelfContainsDrag: fileShelfView.containsDrag
 
     signal collapseRequested()
@@ -23,7 +24,79 @@ Item {
 
     function focusSearch() {
         activeTab = 2
-        searchInput.forceActiveFocus()
+        searchPaletteView.focusInput()
+    }
+
+    component CaptureTile : ColumnLayout {
+        id: tile
+        property string buttonText: ""
+        property string subtitle: ""
+        property bool primary: false
+        property bool buttonEnabled: true
+        signal activated()
+
+        Layout.fillWidth: true
+        Layout.minimumWidth: Math.max(btn.implicitWidth, 240)
+        Layout.preferredWidth: 300
+        spacing: 5
+
+        Button {
+            id: btn
+            Layout.fillWidth: true
+            Layout.minimumWidth: implicitWidth
+            Layout.preferredHeight: 42
+            enabled: tile.buttonEnabled
+            hoverEnabled: true
+            leftPadding: 14
+            rightPadding: 14
+            text: tile.buttonText
+
+            ToolTip.visible: hovered && tile.subtitle.length > 0
+            ToolTip.delay: 450
+            ToolTip.text: tile.subtitle
+
+            contentItem: Text {
+                text: btn.text
+                font.pixelSize: 13
+                font.weight: tile.primary ? Font.DemiBold : Font.Medium
+                color: !btn.enabled
+                       ? "#64748b"
+                       : (tile.primary ? "#f8fafc" : "#e2e8f0")
+                horizontalAlignment: Text.AlignHCenter
+                verticalAlignment: Text.AlignVCenter
+                elide: Text.ElideNone
+            }
+
+            background: Rectangle {
+                radius: 12
+                color: !btn.enabled
+                       ? Qt.rgba(1, 1, 1, 0.03)
+                       : (tile.primary
+                          ? (btn.down ? Qt.rgba(0.14, 0.56, 0.85, 0.90)
+                                      : (btn.hovered ? Qt.rgba(0.22, 0.74, 0.97, 0.88)
+                                                     : Qt.rgba(0.18, 0.65, 0.92, 0.76)))
+                          : (btn.down ? Qt.rgba(1, 1, 1, 0.14)
+                                      : (btn.hovered ? Qt.rgba(1, 1, 1, 0.12)
+                                                     : Qt.rgba(1, 1, 1, 0.07))))
+                border.width: 1
+                border.color: tile.primary
+                              ? Qt.rgba(0.49, 0.85, 1.0, 0.75)
+                              : Qt.rgba(1, 1, 1, 0.14)
+            }
+
+            onClicked: tile.activated()
+        }
+
+        Label {
+            Layout.fillWidth: true
+            Layout.leftMargin: 4
+            Layout.rightMargin: 4
+            horizontalAlignment: Text.AlignHCenter
+            wrapMode: Text.WordWrap
+            color: "#94a3b8"
+            font.pixelSize: 11
+            text: tile.subtitle
+        }
     }
 
     ColumnLayout {
@@ -38,13 +111,14 @@ Item {
 
             Repeater {
                 model: [
-                    { label: "Clipboard", icon: "📋" },
-                    { label: "Shelf", icon: "📁" },
-                    { label: "Search", icon: "🔍" },
-                    { label: "Capture", icon: "📸" }
+                    { label: "Clipboard" },
+                    { label: "Shelf" },
+                    { label: "Search" },
+                    { label: "Capture" }
                 ]
 
                 delegate: Rectangle {
+                    id: tabButton
                     required property int index
                     required property var modelData
                     readonly property bool selected: root.activeTab === index
@@ -65,21 +139,21 @@ Item {
                     Label {
                         id: tabLabel
                         anchors.centerIn: parent
-                        color: selected ? "#f8fafc" : "#cbd5e1"
+                        color: tabButton.selected ? "#f8fafc" : "#cbd5e1"
                         font.pixelSize: 12
-                        font.weight: selected ? Font.DemiBold : Font.Normal
-                        text: modelData.label
+                        font.weight: tabButton.selected ? Font.DemiBold : Font.Normal
+                        text: tabButton.modelData.label
                     }
 
                     MouseArea {
                         anchors.fill: parent
                         cursorShape: Qt.PointingHandCursor
                         onClicked: {
-                            root.activeTab = index
-                            if (index === 0) {
+                            root.activeTab = tabButton.index
+                            if (tabButton.index === 0) {
                                 daemonClient.refreshClips()
-                            } else if (index === 2) {
-                                searchInput.forceActiveFocus()
+                            } else if (tabButton.index === 2) {
+                                searchPaletteView.focusInput()
                             }
                         }
                     }
@@ -97,8 +171,8 @@ Item {
             }
 
             Rectangle {
-                width: 30
-                height: 30
+                implicitWidth: 30
+                implicitHeight: 30
                 radius: 15
                 color: gearHover.hovered ? Qt.rgba(1, 1, 1, 0.14) : Qt.rgba(1, 1, 1, 0.06)
                 border.width: 1
@@ -127,183 +201,53 @@ Item {
             Layout.fillHeight: true
             currentIndex: root.activeTab
 
-            // -----------------------------------------------------------------
-            // 0. ClipboardView (populated via D-Bus from catchypillsd)
-            // -----------------------------------------------------------------
-            Item {
-                ListView {
-                    id: clipboardList
-                    anchors.fill: parent
-                    clip: true
-                    spacing: 6
-                    model: daemonClient.recentClips
-
-                    delegate: Rectangle {
-                        required property var modelData
-                        width: clipboardList.width
-                        height: 44
-                        radius: 11
-                        color: clipHover.hovered ? Qt.rgba(1, 1, 1, 0.10) : Qt.rgba(1, 1, 1, 0.05)
-                        border.width: 1
-                        border.color: Qt.rgba(1, 1, 1, 0.08)
-
-                        HoverHandler { id: clipHover }
-
-                        RowLayout {
-                            anchors.fill: parent
-                            anchors.leftMargin: 12
-                            anchors.rightMargin: 12
-                            spacing: 10
-
-                            Rectangle {
-                                width: 46
-                                height: 20
-                                radius: 6
-                                color: modelData.kind === "image"
-                                       ? Qt.rgba(0.65, 0.55, 0.98, 0.22)
-                                       : Qt.rgba(0.22, 0.74, 0.97, 0.20)
-                                Label {
-                                    anchors.centerIn: parent
-                                    color: modelData.kind === "image" ? "#c4b5fd" : "#38bdf8"
-                                    font.pixelSize: 10
-                                    font.bold: true
-                                    text: modelData.kind.toUpperCase()
-                                }
-                            }
-
-                            Label {
-                                Layout.fillWidth: true
-                                elide: Text.ElideRight
-                                color: "#f1f5f9"
-                                font.pixelSize: 12
-                                text: modelData.preview
-                            }
-                        }
-                    }
-
-                    Label {
-                        anchors.centerIn: parent
-                        visible: clipboardList.count === 0
-                        color: "#64748b"
-                        font.pixelSize: 12
-                        text: "Waiting for Wayland clipboard events via catchypillsd..."
-                    }
-                }
+            // 0. ClipboardView
+            ClipboardView {
+                id: clipboardView
             }
 
-            // -----------------------------------------------------------------
-            // 1. FileShelfView (Wayland wl_data_device drag-and-drop dropzone)
-            // -----------------------------------------------------------------
+            // 1. FileShelfView
             FileShelfView {
                 id: fileShelfView
                 onDropCompleted: root.shelfDropCompleted()
                 onDragHoverChanged: root.shelfDragHoverChanged()
             }
 
-            // -----------------------------------------------------------------
-            // 2. SearchPaletteView (nucleo fuzzy search via catchypillsd)
-            // -----------------------------------------------------------------
-            ColumnLayout {
-                spacing: 8
-
-                TextField {
-                    id: searchInput
-                    Layout.fillWidth: true
-                    placeholderText: "Fuzzy search $HOME files (powered by nucleo)..."
-                    color: "#f8fafc"
-                    background: Rectangle {
-                        radius: 10
-                        color: Qt.rgba(1, 1, 1, 0.07)
-                        border.width: 1
-                        border.color: searchInput.activeFocus
-                                      ? Qt.rgba(0.22, 0.74, 0.97, 0.7)
-                                      : Qt.rgba(1, 1, 1, 0.12)
-                    }
-                    onTextChanged: daemonClient.searchFiles(text)
-                    onActiveFocusChanged: {
-                        if (!activeFocus) {
-                            root.collapseRequested()
-                        }
-                    }
-                }
-
-                ListView {
-                    id: searchList
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-                    clip: true
-                    spacing: 4
-                    model: daemonClient.searchResults
-
-                    delegate: Rectangle {
-                        required property var modelData
-                        width: searchList.width
-                        height: 36
-                        radius: 9
-                        color: searchHover.hovered ? Qt.rgba(1, 1, 1, 0.10) : Qt.rgba(1, 1, 1, 0.05)
-
-                        HoverHandler { id: searchHover }
-
-                        RowLayout {
-                            anchors.fill: parent
-                            anchors.leftMargin: 10
-                            anchors.rightMargin: 10
-                            spacing: 8
-
-                            Label {
-                                color: "#e2e8f0"
-                                font.pixelSize: 12
-                                font.bold: true
-                                text: modelData.name
-                            }
-                            Label {
-                                Layout.fillWidth: true
-                                elide: Text.ElideMiddle
-                                color: "#94a3b8"
-                                font.pixelSize: 11
-                                text: modelData.path
-                            }
-                            Label {
-                                color: "#38bdf8"
-                                font.pixelSize: 10
-                                text: modelData.score
-                            }
-                        }
-                    }
-                }
+            // 2. SearchPaletteView
+            SearchPaletteView {
+                id: searchPaletteView
+                onCollapseRequested: root.collapseRequested()
             }
 
-            // -----------------------------------------------------------------
-            // 3. Capture & GIF Recording Controls (ScreenShot2 + KPipeWire)
-            // -----------------------------------------------------------------
+            // 3. OmniShot Capture & KPipeWire Recording Controls
             ColumnLayout {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
                 spacing: 12
 
-                RowLayout {
+                GridLayout {
                     Layout.fillWidth: true
-                    spacing: 10
+                    columns: 2
+                    columnSpacing: 14
+                    rowSpacing: 16
 
-                    Button {
-                        Layout.fillWidth: true
-                        text: "Region Snip (Annotate)"
-                        highlighted: true
-                        onClicked: captureCoordinator.prepareRegionCapture(false)
+                    CaptureTile {
+                        buttonText: "Region Snip (Annotate)"
+                        subtitle: "Draw arrows and redact text before saving"
+                        primary: true
+                        onActivated: captureCoordinator.prepareRegionCapture(false)
                     }
-                    Button {
-                        Layout.fillWidth: true
-                        text: "Full Workspace (3840×1080)"
-                        onClicked: captureCoordinator.captureWorkspace(false)
+
+                    CaptureTile {
+                        buttonText: "Full Workspace (3840×1080)"
+                        subtitle: "Snap the entire 32:9 desktop to clipboard & disk"
+                        onActivated: captureCoordinator.captureWorkspace(false)
                     }
-                }
 
-                RowLayout {
-                    Layout.fillWidth: true
-                    spacing: 10
-
-                    Button {
-                        Layout.fillWidth: true
-                        text: captureCoordinator.recording ? "Stop Recording" : "Record GIF (15 fps)"
-                        onClicked: {
+                    CaptureTile {
+                        buttonText: captureCoordinator.recording ? "Stop Recording" : "Record GIF (15 fps)"
+                        subtitle: "Capture a compact animated clip via KPipeWire"
+                        onActivated: {
                             if (captureCoordinator.recording) {
                                 captureCoordinator.stopRecording()
                             } else {
@@ -311,11 +255,12 @@ Item {
                             }
                         }
                     }
-                    Button {
-                        Layout.fillWidth: true
-                        text: "Record MP4 (60 fps)"
-                        enabled: !captureCoordinator.recording
-                        onClicked: captureCoordinator.startRecording(1)
+
+                    CaptureTile {
+                        buttonText: "Record MP4 (60 fps)"
+                        subtitle: "Record smooth high-framerate desktop video"
+                        buttonEnabled: !captureCoordinator.recording
+                        onActivated: captureCoordinator.startRecording(1)
                     }
                 }
 

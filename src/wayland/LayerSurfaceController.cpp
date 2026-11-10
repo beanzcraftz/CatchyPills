@@ -258,12 +258,14 @@ void LayerSurfaceController::updateInputRegion(const QRect &pillRect, int corner
     }
 
     if (m_dragActive) {
-        // Bypass tight pill masking while an external Wayland drag is active so
-        // the full 760x460 canvas continues accepting pointer/drag events during
-        // the collapse-to-expand transition.
-        const QSize canvasSize = m_window->size().isEmpty() ? kDefaultCanvasSize : m_window->size();
-        m_window->setFlag(Qt::WindowTransparentForInput, false);
-        m_window->setMask(QRegion(QRect(QPoint(0, 0), canvasSize)));
+        // Bypass tight QWindow::setMask() so the entire 760x460 wl_surface
+        // accepts Wayland pointer and drag events during the animation, and
+        // avoid re-issuing setMask() on every animation frame.
+        if (!m_maskBypassed) {
+            m_maskBypassed = true;
+            m_window->setFlag(Qt::WindowTransparentForInput, false);
+            m_window->setMask(QRegion());
+        }
 
         if (pillRect.isValid() && !pillRect.isEmpty()) {
             QPainterPath path;
@@ -272,6 +274,8 @@ void LayerSurfaceController::updateInputRegion(const QRect &pillRect, int corner
         }
         return;
     }
+
+    m_maskBypassed = false;
 
     if (!pillRect.isValid() || pillRect.isEmpty()) {
         setClickThrough(true);
@@ -298,6 +302,9 @@ void LayerSurfaceController::setDragActive(bool active)
     }
 
     m_dragActive = active;
+    if (!m_dragActive) {
+        m_maskBypassed = false;
+    }
     Q_EMIT dragActiveChanged(m_dragActive);
 
     if (!m_window || m_clickThrough) {
@@ -322,6 +329,7 @@ void LayerSurfaceController::setClickThrough(bool enabled)
     }
 
     m_clickThrough = enabled;
+    m_maskBypassed = false;
 
     if (enabled) {
         // Wayland quirk: passing an empty QRegion() to QWindow::setMask() causes

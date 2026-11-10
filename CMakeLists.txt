@@ -57,7 +57,9 @@ qt_add_qml_module(catchypills
         src/ui/IslandWindow.qml
         src/ui/components/CollapsedPill.qml
         src/ui/components/ExpandedDashboard.qml
+        src/ui/components/ClipboardView.qml
         src/ui/components/FileShelfView.qml
+        src/ui/components/SearchPaletteView.qml
         src/ui/capture/CaptureOverlay.qml
         src/ui/capture/AnnotationCanvas.qml
         src/ui/settings/SettingsWindow.qml

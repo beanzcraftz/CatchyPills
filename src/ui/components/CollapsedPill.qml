@@ -8,6 +8,7 @@ Item {
     property string tickerText: "CatchyPills"
     property bool recordingActive: false
     property bool daemonOnline: true
+    property bool externalDragActive: false
     readonly property bool dragging: dragArea.dragging
 
     signal dragPressed()
@@ -19,9 +20,15 @@ Item {
     MouseArea {
         id: dragArea
         anchors.fill: parent
+        enabled: !root.externalDragActive
         acceptedButtons: Qt.LeftButton
         hoverEnabled: false
         cursorShape: (pressed || dragging) ? Qt.ClosedHandCursor : Qt.PointingHandCursor
+        onEnabledChanged: {
+            if (!enabled) {
+                dragging = false
+            }
+        }
 
         property real pressX: 0
         property real pressY: 0

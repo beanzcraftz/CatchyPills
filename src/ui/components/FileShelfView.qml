@@ -1,3 +1,4 @@
+pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
@@ -81,6 +82,9 @@ Item {
             onEntered: function(drag) {
                 drag.acceptProposedAction()
                 root.dragHoverChanged()
+            }
+            onPositionChanged: function(drag) {
+                drag.acceptProposedAction()
             }
             onExited: root.dragHoverChanged()
             onDropped: function(drop) {
@@ -186,14 +190,78 @@ Item {
             }
         }
 
-        Label {
+        // Centered Onboarding Empty State (Drop Inbox)
+        ColumnLayout {
             anchors.centerIn: parent
+            width: Math.min(parent.width - 48, 400)
             visible: fileShelfModel.count === 0
-            color: dropArea.containsDrag ? "#7dd3fc" : "#64748b"
-            font.pixelSize: 12
-            text: dropArea.containsDrag
-                  ? "Release to stage onto File Shelf"
-                  : "Drag & drop files, URLs, or snippets here to stage on shelf"
+            spacing: 10
+
+            Rectangle {
+                Layout.alignment: Qt.AlignHCenter
+                implicitWidth: 52
+                implicitHeight: 52
+                radius: 26
+                color: dropArea.containsDrag
+                       ? Qt.rgba(0.22, 0.74, 0.97, 0.22)
+                       : Qt.rgba(0.20, 0.83, 0.60, 0.12)
+                border.width: 1
+                border.color: dropArea.containsDrag
+                              ? Qt.rgba(0.22, 0.74, 0.97, 0.75)
+                              : Qt.rgba(0.20, 0.83, 0.60, 0.38)
+
+                Canvas {
+                    id: inboxIcon
+                    anchors.centerIn: parent
+                    width: 24
+                    height: 24
+                    property bool active: dropArea.containsDrag
+                    onActiveChanged: requestPaint()
+                    onPaint: {
+                        var ctx = getContext("2d")
+                        ctx.clearRect(0, 0, width, height)
+                        ctx.strokeStyle = active ? "#38bdf8" : "#34d399"
+                        ctx.lineWidth = 1.8
+                        ctx.lineCap = "round"
+                        ctx.lineJoin = "round"
+
+                        // Tray + inward drop arrow
+                        ctx.beginPath()
+                        ctx.moveTo(4, 13.5)
+                        ctx.lineTo(4, 18.5)
+                        ctx.lineTo(20, 18.5)
+                        ctx.lineTo(20, 13.5)
+                        ctx.stroke()
+
+                        ctx.beginPath()
+                        ctx.moveTo(12, 4.5)
+                        ctx.lineTo(12, 14)
+                        ctx.moveTo(8, 10.5)
+                        ctx.lineTo(12, 14.5)
+                        ctx.lineTo(16, 10.5)
+                        ctx.stroke()
+                    }
+                }
+            }
+
+            Label {
+                Layout.alignment: Qt.AlignHCenter
+                color: dropArea.containsDrag ? "#7dd3fc" : "#e2e8f0"
+                font.pixelSize: 13
+                font.weight: Font.DemiBold
+                text: dropArea.containsDrag ? "Release to Stage" : "Drop Inbox"
+            }
+
+            Label {
+                Layout.fillWidth: true
+                horizontalAlignment: Text.AlignHCenter
+                wrapMode: Text.WordWrap
+                color: dropArea.containsDrag ? "#bae6fd" : "#94a3b8"
+                font.pixelSize: 12
+                text: dropArea.containsDrag
+                      ? "Release to stage files, URLs, or snippets onto your File Shelf."
+                      : "Drop Inbox. Drag and drop files, images, or URLs here to stage them. Click an item to copy it, or drag it out to another app."
+            }
         }
     }
 }

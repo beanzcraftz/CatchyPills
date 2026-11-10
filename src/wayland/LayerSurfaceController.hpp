@@ -108,6 +108,7 @@ private:
     int m_lastCornerRadius{18};
     bool m_clickThrough{false};
     bool m_dragActive{false};
+    bool m_maskBypassed{false};
     int m_surfaceX{0};
     int m_surfaceY{0};
     int m_pillX{0};
