@@ -36,6 +36,10 @@ class ConfigManager final : public QObject
     Q_PROPERTY(bool autoCopyCapture READ autoCopyCapture WRITE setAutoCopyCapture NOTIFY autoCopyCaptureChanged)
     Q_PROPERTY(bool startWithSystem READ startWithSystem WRITE setStartWithSystem NOTIFY startWithSystemChanged)
 
+    // Weather Location
+    Q_PROPERTY(double weatherLatitude READ weatherLatitude WRITE setWeatherLatitude NOTIFY weatherLatitudeChanged)
+    Q_PROPERTY(double weatherLongitude READ weatherLongitude WRITE setWeatherLongitude NOTIFY weatherLongitudeChanged)
+
 public:
     explicit ConfigManager(QObject *parent = nullptr);
 
@@ -78,6 +82,12 @@ public:
     bool startWithSystem() const;
     void setStartWithSystem(bool enabled);
 
+    double weatherLatitude() const noexcept { return m_weatherLatitude; }
+    void setWeatherLatitude(double latitude);
+
+    double weatherLongitude() const noexcept { return m_weatherLongitude; }
+    void setWeatherLongitude(double longitude);
+
 Q_SIGNALS:
     void availableMonitorsChanged();
     void targetMonitorChanged(const QString &monitorName);
@@ -91,6 +101,9 @@ Q_SIGNALS:
     void screenshotsDirChanged(const QString &path);
     void autoCopyCaptureChanged(bool enabled);
     void startWithSystemChanged(bool enabled);
+    void weatherLatitudeChanged(double latitude);
+    void weatherLongitudeChanged(double longitude);
+    void weatherCoordinatesChanged(double latitude, double longitude);
 
 private:
     bool clearCustomPosition();
@@ -110,6 +123,8 @@ private:
     int m_shelfRetentionHours{24};
     QString m_screenshotsDir;
     bool m_autoCopyCapture{true};
+    double m_weatherLatitude{-27.82};
+    double m_weatherLongitude{152.96};
 };
 
 } // namespace catchypills::app

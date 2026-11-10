@@ -9,6 +9,7 @@
 #include <QTextStream>
 
 #include <algorithm>
+#include <cmath>
 
 namespace catchypills::app {
 
@@ -54,6 +55,11 @@ ConfigManager::ConfigManager(QObject *parent)
         m_settings.value(QStringLiteral("Capture/screenshotsDir"), defaultShots).toString();
     m_autoCopyCapture =
         m_settings.value(QStringLiteral("Capture/autoCopy"), true).toBool();
+
+    m_weatherLatitude = std::clamp(
+        m_settings.value(QStringLiteral("Weather/latitude"), -27.82).toDouble(), -90.0, 90.0);
+    m_weatherLongitude = std::clamp(
+        m_settings.value(QStringLiteral("Weather/longitude"), 152.96).toDouble(), -180.0, 180.0);
 
     connect(qGuiApp, &QGuiApplication::screenAdded, this, &ConfigManager::availableMonitorsChanged);
     connect(qGuiApp, &QGuiApplication::screenRemoved, this, &ConfigManager::availableMonitorsChanged);
@@ -240,6 +246,32 @@ void ConfigManager::setAutoCopyCapture(bool enabled)
     m_settings.setValue(QStringLiteral("Capture/autoCopy"), m_autoCopyCapture);
     m_settings.sync();
     Q_EMIT autoCopyCaptureChanged(m_autoCopyCapture);
+}
+
+void ConfigManager::setWeatherLatitude(double latitude)
+{
+    const double clamped = std::clamp(latitude, -90.0, 90.0);
+    if (std::abs(m_weatherLatitude - clamped) < 1e-6) {
+        return;
+    }
+    m_weatherLatitude = clamped;
+    m_settings.setValue(QStringLiteral("Weather/latitude"), m_weatherLatitude);
+    m_settings.sync();
+    Q_EMIT weatherLatitudeChanged(m_weatherLatitude);
+    Q_EMIT weatherCoordinatesChanged(m_weatherLatitude, m_weatherLongitude);
+}
+
+void ConfigManager::setWeatherLongitude(double longitude)
+{
+    const double clamped = std::clamp(longitude, -180.0, 180.0);
+    if (std::abs(m_weatherLongitude - clamped) < 1e-6) {
+        return;
+    }
+    m_weatherLongitude = clamped;
+    m_settings.setValue(QStringLiteral("Weather/longitude"), m_weatherLongitude);
+    m_settings.sync();
+    Q_EMIT weatherLongitudeChanged(m_weatherLongitude);
+    Q_EMIT weatherCoordinatesChanged(m_weatherLatitude, m_weatherLongitude);
 }
 
 bool ConfigManager::startWithSystem() const

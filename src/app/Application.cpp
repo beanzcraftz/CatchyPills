@@ -85,6 +85,8 @@ bool Application::initialize()
     m_fileShelfModel->setRetentionHours(m_configManager->shelfRetentionHours());
     m_captureCoordinator->setOutputDirectory(m_configManager->screenshotsDir());
     m_captureCoordinator->setAutoCopyEnabled(m_configManager->autoCopyCapture());
+    m_weatherController->setCoordinates(m_configManager->weatherLatitude(),
+                                        m_configManager->weatherLongitude());
 
     connect(m_configManager, &ConfigManager::shelfRetentionHoursChanged,
             m_fileShelfModel, &shelf::FileShelfModel::setRetentionHours);
@@ -94,6 +96,8 @@ bool Application::initialize()
             m_captureCoordinator, &capture::CaptureCoordinator::setAutoCopyEnabled);
     connect(m_configManager, &ConfigManager::clipboardPausedChanged,
             m_daemonClient, &core::DaemonClient::setClipboardPaused);
+    connect(m_configManager, &ConfigManager::weatherCoordinatesChanged,
+            m_weatherController, &weather::WeatherController::setCoordinates);
 
     connect(m_configManager, &ConfigManager::targetMonitorChanged,
             this, &Application::applyDisplaySettings);

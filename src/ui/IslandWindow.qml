@@ -144,6 +144,7 @@ Window {
         Rectangle {
             id: pillContainer
             state: "collapsed"
+            onStateChanged: if (state === "collapsed") dashboard.closePopups()
 
             readonly property int collapsedX: root.hasLayer ? layerController.pillCanvasX : 220
             readonly property int collapsedY: root.hasLayer ? layerController.pillCanvasY : 0
@@ -230,7 +231,12 @@ Window {
                 id: collapseDelay
                 interval: configManager.collapseDelayMs
                 onTriggered: {
-                    if (!islandHover.hovered && !dashboard.searchInputFocused && !collapsedHud.repositioning && !root.dragActive) {
+                    if (!islandHover.hovered
+                        && !dashboard.searchInputFocused
+                        && !dashboard.weatherPopupOpen
+                        && !collapsedHud.repositioning
+                        && !root.dragActive) {
+                        dashboard.closePopups()
                         pillContainer.state = "collapsed"
                         if (root.hasLayer) {
                             layerController.setKeyboardInteractive(false)

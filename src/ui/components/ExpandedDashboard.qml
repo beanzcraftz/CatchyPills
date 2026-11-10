@@ -13,6 +13,7 @@ Item {
 
     property int activeTab: 0 // 0 = Clipboard, 1 = Shelf, 2 = Media, 3 = Notes, 4 = Search, 5 = Capture
     readonly property bool searchInputFocused: searchPaletteView.inputFocused || notesView.inputFocused
+    readonly property bool weatherPopupOpen: forecastPopup.opened
     readonly property bool shelfContainsDrag: fileShelfView.containsDrag
 
     signal collapseRequested()
@@ -22,6 +23,10 @@ Item {
 
     function acceptShelfDrop(drop) {
         return fileShelfView.acceptDrop(drop)
+    }
+
+    function closePopups() {
+        forecastPopup.close()
     }
 
     function focusSearch() {
@@ -120,8 +125,9 @@ Item {
 
             Item { Layout.fillWidth: true }
 
-            // Cached 30-min Open-Meteo weather badge
+            // Cached 30-min Open-Meteo weather badge + 7-day forecast popup
             Item {
+                id: weatherPillItem
                 implicitWidth: weatherRow.implicitWidth + 18
                 implicitHeight: 32
 
@@ -137,22 +143,22 @@ Item {
                     id: weatherPill
                     anchors.fill: parent
                     radius: 12
-                    color: weatherHover.hovered
+                    color: (weatherHover.hovered || forecastPopup.opened)
                            ? Qt.rgba(1, 1, 1, 0.12)
                            : Qt.rgba(0.16, 0.16, 0.24, 0.72)
                     border.width: 1
-                    border.color: weatherHover.hovered
+                    border.color: (weatherHover.hovered || forecastPopup.opened)
                                   ? Qt.rgba(0.0, 0.90, 0.64, 0.45)
                                   : Qt.rgba(1, 1, 1, 0.10)
 
                     HoverHandler { id: weatherHover }
 
-                    ToolTip.visible: weatherHover.hovered
+                    ToolTip.visible: weatherHover.hovered && !forecastPopup.opened
                     ToolTip.delay: 300
                     ToolTip.text: weatherController.conditionSummary
                                   + (weatherController.lastUpdatedText !== ""
-                                     ? "\nUpdated " + weatherController.lastUpdatedText
-                                     : "")
+                                     ? "\nUpdated " + weatherController.lastUpdatedText + " • Click for 7-day forecast"
+                                     : "\nClick for 7-day forecast")
 
                     Row {
                         id: weatherRow
@@ -175,9 +181,172 @@ Item {
                     }
 
                     MouseArea {
+                        id: weatherMouse
                         anchors.fill: parent
                         cursorShape: Qt.PointingHandCursor
-                        onClicked: weatherController.refresh(false)
+                        property bool popupWasOpenOnPress: false
+                        onPressed: popupWasOpenOnPress = forecastPopup.opened
+                        onClicked: {
+                            if (!popupWasOpenOnPress) {
+                                weatherController.refresh(false)
+                                forecastPopup.open()
+                            }
+                        }
+                    }
+                }
+
+                Popup {
+                    id: forecastPopup
+                    x: weatherPillItem.width + 38 - width
+                    y: weatherPillItem.height + 8
+                    width: 264
+                    padding: 12
+                    modal: false
+                    focus: true
+                    closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+
+                    background: Item {
+                        RectangularShadow {
+                            anchors.fill: forecastBg
+                            radius: forecastBg.radius
+                            offset: Qt.vector2d(0, 8)
+                            blur: 20
+                            spread: 1
+                            color: Qt.rgba(0, 0, 0, 0.62)
+                        }
+
+                        Rectangle {
+                            id: forecastBg
+                            anchors.fill: parent
+                            radius: 14
+                            color: Qt.rgba(0.118, 0.118, 0.180, 0.96)
+                            border.width: 1
+                            border.color: Qt.rgba(0.0, 0.90, 0.64, 0.35)
+                        }
+                    }
+
+                    contentItem: ColumnLayout {
+                        spacing: 8
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 6
+
+                            Label {
+                                Layout.fillWidth: true
+                                color: "#f8fafc"
+                                font.pixelSize: 12
+                                font.weight: Font.DemiBold
+                                text: "7-Day Forecast"
+                            }
+
+                            Rectangle {
+                                implicitWidth: 22
+                                implicitHeight: 22
+                                radius: 7
+                                color: refreshHover.hovered ? Qt.rgba(1, 1, 1, 0.12) : "transparent"
+
+                                HoverHandler { id: refreshHover }
+
+                                ToolTip.visible: refreshHover.hovered
+                                ToolTip.delay: 300
+                                ToolTip.text: "Refresh weather now"
+
+                                Label {
+                                    anchors.centerIn: parent
+                                    color: refreshHover.hovered ? "#00e5a3" : "#94a3b8"
+                                    font.pixelSize: 12
+                                    text: "↻"
+                                }
+
+                                MouseArea {
+                                    anchors.fill: parent
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: weatherController.refresh(true)
+                                }
+                            }
+                        }
+
+                        Label {
+                            Layout.fillWidth: true
+                            wrapMode: Text.WordWrap
+                            color: "#94a3b8"
+                            font.pixelSize: 10
+                            text: weatherController.conditionSummary
+                                  + (weatherController.lastUpdatedText !== ""
+                                     ? " • Updated " + weatherController.lastUpdatedText
+                                     : "")
+                        }
+
+                        Rectangle {
+                            Layout.fillWidth: true
+                            implicitHeight: 1
+                            color: Qt.rgba(1, 1, 1, 0.08)
+                        }
+
+                        Label {
+                            Layout.fillWidth: true
+                            visible: weatherController.forecastData.length === 0
+                            horizontalAlignment: Text.AlignHCenter
+                            color: "#64748b"
+                            font.pixelSize: 11
+                            text: "Loading 7-day forecast..."
+                        }
+
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            visible: weatherController.forecastData.length > 0
+                            spacing: 6
+
+                            Repeater {
+                                model: weatherController.forecastData
+
+                                delegate: RowLayout {
+                                    id: forecastDayRow
+                                    required property var modelData
+                                    Layout.fillWidth: true
+                                    spacing: 8
+
+                                    Label {
+                                        Layout.preferredWidth: 40
+                                        color: "#e2e8f0"
+                                        font.pixelSize: 11
+                                        font.weight: Font.DemiBold
+                                        text: forecastDayRow.modelData.dayOfWeek
+                                    }
+
+                                    Label {
+                                        Layout.preferredWidth: 24
+                                        horizontalAlignment: Text.AlignHCenter
+                                        font.pixelSize: 13
+                                        text: forecastDayRow.modelData.icon
+                                    }
+
+                                    Item { Layout.fillWidth: true }
+
+                                    Label {
+                                        color: "#94a3b8"
+                                        font.pixelSize: 11
+                                        font.family: "monospace"
+                                        text: forecastDayRow.modelData.minTemp + "°"
+                                    }
+
+                                    Label {
+                                        color: "#64748b"
+                                        font.pixelSize: 10
+                                        text: "-"
+                                    }
+
+                                    Label {
+                                        color: "#00e5a3"
+                                        font.pixelSize: 11
+                                        font.weight: Font.DemiBold
+                                        font.family: "monospace"
+                                        text: forecastDayRow.modelData.maxTemp + "°"
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }

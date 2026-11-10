@@ -271,6 +271,126 @@ Window {
                     }
                 }
             }
+
+            // -----------------------------------------------------------------
+            // 4. Weather
+            // -----------------------------------------------------------------
+            GroupBox {
+                id: weatherGroup
+                Layout.fillWidth: true
+                title: "Weather"
+
+                background: Rectangle {
+                    y: weatherGroup.topPadding - weatherGroup.bottomPadding
+                    width: weatherGroup.width
+                    height: weatherGroup.height - weatherGroup.topPadding + weatherGroup.bottomPadding
+                    radius: 12
+                    color: Qt.rgba(1, 1, 1, 0.04)
+                    border.width: 1
+                    border.color: Qt.rgba(1, 1, 1, 0.10)
+                }
+
+                ColumnLayout {
+                    anchors.fill: parent
+                    spacing: 12
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 12
+
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            spacing: 4
+                            Label {
+                                color: "#e2e8f0"
+                                text: "Latitude (-90 to 90)"
+                            }
+                            TextField {
+                                id: latField
+                                Layout.fillWidth: true
+                                inputMethodHints: Qt.ImhFormattedNumbersOnly
+                                validator: DoubleValidator {
+                                    bottom: -90.0
+                                    top: 90.0
+                                    decimals: 4
+                                    notation: DoubleValidator.StandardNotation
+                                }
+                                text: configManager.weatherLatitude.toString()
+                                onEditingFinished: {
+                                    var parsed = parseFloat(text)
+                                    if (!isNaN(parsed)) {
+                                        configManager.weatherLatitude = parsed
+                                    } else {
+                                        text = configManager.weatherLatitude.toString()
+                                    }
+                                }
+                            }
+                        }
+
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            spacing: 4
+                            Label {
+                                color: "#e2e8f0"
+                                text: "Longitude (-180 to 180)"
+                            }
+                            TextField {
+                                id: lonField
+                                Layout.fillWidth: true
+                                inputMethodHints: Qt.ImhFormattedNumbersOnly
+                                validator: DoubleValidator {
+                                    bottom: -180.0
+                                    top: 180.0
+                                    decimals: 4
+                                    notation: DoubleValidator.StandardNotation
+                                }
+                                text: configManager.weatherLongitude.toString()
+                                onEditingFinished: {
+                                    var parsed = parseFloat(text)
+                                    if (!isNaN(parsed)) {
+                                        configManager.weatherLongitude = parsed
+                                    } else {
+                                        text = configManager.weatherLongitude.toString()
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Label {
+                            Layout.fillWidth: true
+                            color: "#94a3b8"
+                            font.pixelSize: 11
+                            wrapMode: Text.WordWrap
+                            text: "Updates the Open-Meteo 7-day forecast immediately when coordinates change."
+                        }
+                        Button {
+                            text: "Apply"
+                            onClicked: {
+                                var latVal = parseFloat(latField.text)
+                                var lonVal = parseFloat(lonField.text)
+                                if (!isNaN(latVal)) {
+                                    configManager.weatherLatitude = latVal
+                                }
+                                if (!isNaN(lonVal)) {
+                                    configManager.weatherLongitude = lonVal
+                                }
+                            }
+                        }
+                        Button {
+                            text: "Default"
+                            onClicked: {
+                                configManager.weatherLatitude = -27.82
+                                configManager.weatherLongitude = 152.96
+                                latField.text = configManager.weatherLatitude.toString()
+                                lonField.text = configManager.weatherLongitude.toString()
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }
