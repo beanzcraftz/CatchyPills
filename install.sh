@@ -10,6 +10,7 @@ DEPS=(
     ninja
     extra-cmake-modules
     pkgconf
+    vulkan-headers
     qt6-base
     qt6-declarative
     qt6-wayland
@@ -37,7 +38,7 @@ echo "==> Building CatchyPills C++20/Qt6 frontend..."
 cmake -B build -G Ninja \
     -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_INSTALL_PREFIX=/usr \
-    -Wno-dev
+    -Wno-deprecated
 cmake --build build
 
 echo "==> Building catchypillsd Rust background daemon..."

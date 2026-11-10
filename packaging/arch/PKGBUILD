@@ -28,6 +28,7 @@ makedepends=(
     'rust'
     'cargo'
     'pkgconf'
+    'vulkan-headers'
 )
 optdepends=(
     'tesseract: OCR text extraction from region captures'
@@ -42,7 +43,7 @@ build() {
     cmake -B build -G Ninja \
         -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_INSTALL_PREFIX=/usr \
-        -Wno-dev
+        -Wno-deprecated
     cmake --build build
 
     # 2. Build Rust background daemon (clipboard ext-data-control-v1 + file indexer)

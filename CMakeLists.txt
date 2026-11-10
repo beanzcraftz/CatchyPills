@@ -24,6 +24,9 @@ find_package(Qt6 REQUIRED COMPONENTS
 
 # Sets up AUTOMOC/AUTORCC, QML tooling policies, and Wayland-friendly Qt defaults.
 qt_standard_project_setup(REQUIRES 6.5)
+if(COMMAND qt_policy)
+    qt_policy(SET QTP0004 NEW)
+endif()
 
 # KDE Frameworks 6 & Plasma 6 Wayland integration libraries.
 find_package(KF6WindowSystem REQUIRED)
@@ -55,6 +58,10 @@ qt_add_qml_module(catchypills
         src/ui/capture/CaptureOverlay.qml
         src/ui/capture/AnnotationCanvas.qml
         src/ui/settings/SettingsWindow.qml
+)
+
+target_include_directories(catchypills PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/src"
 )
 
 # Note exact imported target names on KDE Plasma 6 / CachyOS:
