@@ -12,10 +12,12 @@ build.ninja
 daemon/target/
 daemon/Cargo.lock
 
-# Arch makepkg artifacts
+# Arch makepkg & release distribution artifacts
 packaging/arch/pkg/
 packaging/arch/src/
 *.pkg.tar*
+dist/
+*.tar.gz
 
 # IDEs & Editors
 .vscode/
