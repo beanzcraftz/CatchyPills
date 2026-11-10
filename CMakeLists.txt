@@ -22,6 +22,7 @@ find_package(Qt6 REQUIRED COMPONENTS
     Quick
     DBus
     Sql
+    Network
 )
 
 # Sets up AUTOMOC/AUTORCC, QML tooling policies, and Wayland-friendly Qt defaults.
@@ -53,6 +54,10 @@ qt_add_executable(catchypills
     src/modules/notes/NotesModel.cpp
     src/modules/shelf/FileShelfModel.hpp
     src/modules/shelf/FileShelfModel.cpp
+    src/modules/sysmon/SysMonController.hpp
+    src/modules/sysmon/SysMonController.cpp
+    src/modules/weather/WeatherController.hpp
+    src/modules/weather/WeatherController.cpp
     src/wayland/LayerSurfaceController.hpp
     src/wayland/LayerSurfaceController.cpp
 )
@@ -89,6 +94,7 @@ target_link_libraries(catchypills PRIVATE
     Qt6::Quick
     Qt6::DBus
     Qt6::Sql
+    Qt6::Network
     KF6::WindowSystem
     KF6::GlobalAccel
     LayerShellQt::Interface

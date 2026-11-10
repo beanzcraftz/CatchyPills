@@ -32,6 +32,14 @@ namespace catchypills::shelf {
 class FileShelfModel;
 }
 
+namespace catchypills::sysmon {
+class SysMonController;
+}
+
+namespace catchypills::weather {
+class WeatherController;
+}
+
 namespace catchypills::wayland {
 class LayerSurfaceController;
 }
@@ -88,6 +96,8 @@ private:
     media::MprisController *m_mprisController{nullptr};
     notes::NotesModel *m_notesModel{nullptr};
     shelf::FileShelfModel *m_fileShelfModel{nullptr};
+    sysmon::SysMonController *m_sysMonController{nullptr};
+    weather::WeatherController *m_weatherController{nullptr};
     capture::CaptureImageProvider *m_imageProvider{nullptr};
     capture::CaptureCoordinator *m_captureCoordinator{nullptr};
     wayland::LayerSurfaceController *m_islandLayer{nullptr};

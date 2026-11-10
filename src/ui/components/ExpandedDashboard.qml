@@ -120,6 +120,68 @@ Item {
 
             Item { Layout.fillWidth: true }
 
+            // Cached 30-min Open-Meteo weather badge
+            Item {
+                implicitWidth: weatherRow.implicitWidth + 18
+                implicitHeight: 32
+
+                RectangularShadow {
+                    anchors.fill: weatherPill
+                    radius: weatherPill.radius
+                    offset: Qt.vector2d(0, 2)
+                    blur: 6
+                    color: Qt.rgba(0, 0, 0, 0.35)
+                }
+
+                Rectangle {
+                    id: weatherPill
+                    anchors.fill: parent
+                    radius: 12
+                    color: weatherHover.hovered
+                           ? Qt.rgba(1, 1, 1, 0.12)
+                           : Qt.rgba(0.16, 0.16, 0.24, 0.72)
+                    border.width: 1
+                    border.color: weatherHover.hovered
+                                  ? Qt.rgba(0.0, 0.90, 0.64, 0.45)
+                                  : Qt.rgba(1, 1, 1, 0.10)
+
+                    HoverHandler { id: weatherHover }
+
+                    ToolTip.visible: weatherHover.hovered
+                    ToolTip.delay: 300
+                    ToolTip.text: weatherController.conditionSummary
+                                  + (weatherController.lastUpdatedText !== ""
+                                     ? "\nUpdated " + weatherController.lastUpdatedText
+                                     : "")
+
+                    Row {
+                        id: weatherRow
+                        anchors.centerIn: parent
+                        spacing: 5
+
+                        Label {
+                            anchors.verticalCenter: parent.verticalCenter
+                            font.pixelSize: 13
+                            text: weatherController.conditionIcon
+                        }
+
+                        Label {
+                            anchors.verticalCenter: parent.verticalCenter
+                            color: "#e2e8f0"
+                            font.pixelSize: 12
+                            font.weight: Font.Medium
+                            text: weatherController.temperatureText
+                        }
+                    }
+
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: weatherController.refresh(false)
+                    }
+                }
+            }
+
             Item {
                 implicitWidth: 32
                 implicitHeight: 32
@@ -238,7 +300,7 @@ Item {
 
                         ColumnLayout {
                             anchors.centerIn: parent
-                            width: Math.min(parent.width - 56, 420)
+                            width: Math.min(parent.width - 40, 520)
                             spacing: 14
 
                             Rectangle {
@@ -300,66 +362,135 @@ Item {
                                       : "Drag across any area of your display to hand off a Screenshot to OmniShot or Record MP4."
                             }
 
-                            Item {
+                            RowLayout {
                                 Layout.alignment: Qt.AlignHCenter
-                                implicitWidth: primaryCaptureBtn.implicitWidth
-                                implicitHeight: 44
+                                spacing: 10
 
-                                RectangularShadow {
-                                    anchors.fill: primaryCaptureBtn
-                                    radius: primaryCaptureBtn.radius
-                                    offset: Qt.vector2d(0, 4)
-                                    blur: 14
-                                    color: captureCoordinator.recording
-                                           ? Qt.rgba(0.94, 0.27, 0.27, 0.35)
-                                           : Qt.rgba(0.0, 0.90, 0.64, 0.32)
+                                Item {
+                                    implicitWidth: primaryCaptureBtn.implicitWidth
+                                    implicitHeight: 44
+
+                                    RectangularShadow {
+                                        anchors.fill: primaryCaptureBtn
+                                        radius: primaryCaptureBtn.radius
+                                        offset: Qt.vector2d(0, 4)
+                                        blur: 14
+                                        color: captureCoordinator.recording
+                                               ? Qt.rgba(0.94, 0.27, 0.27, 0.35)
+                                               : Qt.rgba(0.0, 0.90, 0.64, 0.32)
+                                    }
+
+                                    Rectangle {
+                                        id: primaryCaptureBtn
+                                        implicitWidth: Math.max(btnLabel.implicitWidth + 32, 188)
+                                        implicitHeight: 44
+                                        radius: 12
+                                        color: captureCoordinator.saving
+                                               ? Qt.rgba(0.28, 0.33, 0.41, 0.85)
+                                               : (captureCoordinator.recording
+                                                  ? (ctaMouse.pressed ? "#dc2626" : (ctaHover.hovered ? "#f87171" : "#ef4444"))
+                                                  : (ctaMouse.pressed ? Qt.darker("#00e5a3", 1.12)
+                                                                      : (ctaHover.hovered ? "#22f3b5" : "#00e5a3")))
+                                        border.width: 1
+                                        border.color: Qt.rgba(1, 1, 1, captureCoordinator.saving ? 0.16 : 0.35)
+                                        opacity: captureCoordinator.saving ? 0.72 : 1.0
+
+                                        HoverHandler {
+                                            id: ctaHover
+                                            enabled: !captureCoordinator.saving
+                                        }
+
+                                        Label {
+                                            id: btnLabel
+                                            anchors.centerIn: parent
+                                            color: captureCoordinator.saving
+                                                   ? "#e2e8f0"
+                                                   : (captureCoordinator.recording ? "#ffffff" : "#091216")
+                                            font.pixelSize: 13
+                                            font.weight: Font.DemiBold
+                                            text: captureCoordinator.saving
+                                                  ? "Saving..."
+                                                  : (captureCoordinator.recording
+                                                     ? "Stop Recording"
+                                                     : "Select Region / Capture")
+                                        }
+
+                                        MouseArea {
+                                            id: ctaMouse
+                                            anchors.fill: parent
+                                            enabled: !captureCoordinator.saving
+                                            cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
+                                            onClicked: {
+                                                if (captureCoordinator.recording) {
+                                                    captureCoordinator.stopRecording()
+                                                } else {
+                                                    captureCoordinator.prepareRegionCapture(false)
+                                                }
+                                            }
+                                        }
+                                    }
                                 }
 
-                                Rectangle {
-                                    id: primaryCaptureBtn
-                                    implicitWidth: Math.max(btnLabel.implicitWidth + 44, 236)
+                                Item {
+                                    implicitWidth: colorPickerBtn.implicitWidth
                                     implicitHeight: 44
-                                    radius: 12
-                                    color: captureCoordinator.saving
-                                           ? Qt.rgba(0.28, 0.33, 0.41, 0.85)
-                                           : (captureCoordinator.recording
-                                              ? (ctaMouse.pressed ? "#dc2626" : (ctaHover.hovered ? "#f87171" : "#ef4444"))
-                                              : (ctaMouse.pressed ? Qt.darker("#00e5a3", 1.12)
-                                                                  : (ctaHover.hovered ? "#22f3b5" : "#00e5a3")))
-                                    border.width: 1
-                                    border.color: Qt.rgba(1, 1, 1, captureCoordinator.saving ? 0.16 : 0.35)
-                                    opacity: captureCoordinator.saving ? 0.72 : 1.0
 
-                                    HoverHandler {
-                                        id: ctaHover
-                                        enabled: !captureCoordinator.saving
+                                    RectangularShadow {
+                                        anchors.fill: colorPickerBtn
+                                        radius: colorPickerBtn.radius
+                                        offset: Qt.vector2d(0, 4)
+                                        blur: 12
+                                        color: Qt.rgba(0, 0, 0, 0.38)
                                     }
 
-                                    Label {
-                                        id: btnLabel
-                                        anchors.centerIn: parent
-                                        color: captureCoordinator.saving
-                                               ? "#e2e8f0"
-                                               : (captureCoordinator.recording ? "#ffffff" : "#091216")
-                                        font.pixelSize: 13
-                                        font.weight: Font.DemiBold
-                                        text: captureCoordinator.saving
-                                              ? "Saving..."
-                                              : (captureCoordinator.recording
-                                                 ? "Stop Recording"
-                                                 : "Select Region / Capture")
-                                    }
+                                    Rectangle {
+                                        id: colorPickerBtn
+                                        implicitWidth: Math.max(colorBtnRow.implicitWidth + 28, 188)
+                                        implicitHeight: 44
+                                        radius: 12
+                                        color: colorMouse.pressed
+                                               ? Qt.rgba(1, 1, 1, 0.16)
+                                               : (colorHover.hovered
+                                                  ? Qt.rgba(1, 1, 1, 0.11)
+                                                  : Qt.rgba(0.18, 0.18, 0.27, 0.88))
+                                        border.width: 1
+                                        border.color: colorHover.hovered
+                                                      ? "#00e5a3"
+                                                      : Qt.rgba(1, 1, 1, 0.16)
 
-                                    MouseArea {
-                                        id: ctaMouse
-                                        anchors.fill: parent
-                                        enabled: !captureCoordinator.saving
-                                        cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
-                                        onClicked: {
-                                            if (captureCoordinator.recording) {
-                                                captureCoordinator.stopRecording()
-                                            } else {
-                                                captureCoordinator.prepareRegionCapture(false)
+                                        HoverHandler { id: colorHover }
+
+                                        Row {
+                                            id: colorBtnRow
+                                            anchors.centerIn: parent
+                                            spacing: 7
+
+                                            Rectangle {
+                                                anchors.verticalCenter: parent.verticalCenter
+                                                width: 10
+                                                height: 10
+                                                radius: 5
+                                                color: "#00e5a3"
+                                                border.width: 1
+                                                border.color: Qt.rgba(1, 1, 1, 0.45)
+                                            }
+
+                                            Label {
+                                                anchors.verticalCenter: parent.verticalCenter
+                                                color: "#f8fafc"
+                                                font.pixelSize: 12
+                                                font.weight: Font.Medium
+                                                text: "Pick Screen Color (HEX)"
+                                            }
+                                        }
+
+                                        MouseArea {
+                                            id: colorMouse
+                                            anchors.fill: parent
+                                            cursorShape: Qt.PointingHandCursor
+                                            onClicked: {
+                                                root.collapseImmediatelyRequested()
+                                                captureCoordinator.pickScreenColor()
                                             }
                                         }
                                     }

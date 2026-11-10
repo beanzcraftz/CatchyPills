@@ -97,6 +97,7 @@ constexpr const char *kKWinShotIface = "org.kde.KWin.ScreenShot2";
 constexpr const char *kPortalService = "org.freedesktop.portal.Desktop";
 constexpr const char *kPortalPath = "/org/freedesktop/portal/desktop";
 constexpr const char *kScreenCastIface = "org.freedesktop.portal.ScreenCast";
+constexpr const char *kScreenshotPortalIface = "org.freedesktop.portal.Screenshot";
 constexpr const char *kFileChooserIface = "org.freedesktop.portal.FileChooser";
 constexpr const char *kSessionIface = "org.freedesktop.portal.Session";
 constexpr const char *kRequestIface = "org.freedesktop.portal.Request";
@@ -1354,6 +1355,169 @@ void CaptureCoordinator::notifyRecordingSaved(const QString &outputPath)
         QStringLiteral("CatchyPills"),
         msg,
     });
+}
+
+void CaptureCoordinator::pickScreenColor()
+{
+    const QString token = QStringLiteral("cp_pick_%1")
+                              .arg(QUuid::createUuid().toString(QUuid::Id128));
+
+    if (!m_pickColorRequestPath.isEmpty()) {
+        QDBusConnection::sessionBus().disconnect(
+            QString::fromLatin1(kPortalService),
+            m_pickColorRequestPath,
+            QString::fromLatin1(kRequestIface),
+            QStringLiteral("Response"),
+            this,
+            SLOT(onPickColorResponse(uint,QVariantMap)));
+        m_pickColorRequestPath.clear();
+    }
+
+    QString sender = QDBusConnection::sessionBus().baseService();
+    sender.replace(QLatin1Char('.'), QLatin1Char('_'));
+    sender.remove(QLatin1Char(':'));
+    if (!sender.isEmpty()) {
+        m_pickColorRequestPath = QStringLiteral("/org/freedesktop/portal/desktop/request/%1/%2")
+                                     .arg(sender, token);
+        QDBusConnection::sessionBus().connect(
+            QString::fromLatin1(kPortalService),
+            m_pickColorRequestPath,
+            QString::fromLatin1(kRequestIface),
+            QStringLiteral("Response"),
+            this,
+            SLOT(onPickColorResponse(uint,QVariantMap)));
+    }
+
+    QVariantMap options;
+    options.insert(QStringLiteral("handle_token"), token);
+
+    auto msg = QDBusMessage::createMethodCall(
+        QString::fromLatin1(kPortalService),
+        QString::fromLatin1(kPortalPath),
+        QString::fromLatin1(kScreenshotPortalIface),
+        QStringLiteral("PickColor"));
+    msg << QString() << options;
+
+    setStatus(QStringLiteral("Select a screen color..."));
+
+    auto *watcher = new QDBusPendingCallWatcher(
+        QDBusConnection::sessionBus().asyncCall(msg), this);
+    connect(watcher, &QDBusPendingCallWatcher::finished,
+            this, [this](QDBusPendingCallWatcher *w) {
+        w->deleteLater();
+        QDBusPendingReply<QDBusObjectPath> reply = *w;
+        if (!reply.isValid()) {
+            if (!m_pickColorRequestPath.isEmpty()) {
+                QDBusConnection::sessionBus().disconnect(
+                    QString::fromLatin1(kPortalService),
+                    m_pickColorRequestPath,
+                    QString::fromLatin1(kRequestIface),
+                    QStringLiteral("Response"),
+                    this,
+                    SLOT(onPickColorResponse(uint,QVariantMap)));
+                m_pickColorRequestPath.clear();
+            }
+            const QString err = reply.error().message();
+            setStatus(err);
+            Q_EMIT captureFailed(err);
+            return;
+        }
+
+        const QString actualPath = reply.value().path();
+        if (!actualPath.isEmpty() && actualPath != m_pickColorRequestPath) {
+            if (!m_pickColorRequestPath.isEmpty()) {
+                QDBusConnection::sessionBus().disconnect(
+                    QString::fromLatin1(kPortalService),
+                    m_pickColorRequestPath,
+                    QString::fromLatin1(kRequestIface),
+                    QStringLiteral("Response"),
+                    this,
+                    SLOT(onPickColorResponse(uint,QVariantMap)));
+            }
+            m_pickColorRequestPath = actualPath;
+            QDBusConnection::sessionBus().connect(
+                QString::fromLatin1(kPortalService),
+                m_pickColorRequestPath,
+                QString::fromLatin1(kRequestIface),
+                QStringLiteral("Response"),
+                this,
+                SLOT(onPickColorResponse(uint,QVariantMap)));
+        }
+    });
+}
+
+void CaptureCoordinator::onPickColorResponse(uint response, const QVariantMap &results)
+{
+    if (!m_pickColorRequestPath.isEmpty()) {
+        QDBusConnection::sessionBus().disconnect(
+            QString::fromLatin1(kPortalService),
+            m_pickColorRequestPath,
+            QString::fromLatin1(kRequestIface),
+            QStringLiteral("Response"),
+            this,
+            SLOT(onPickColorResponse(uint,QVariantMap)));
+        m_pickColorRequestPath.clear();
+    }
+
+    if (response != 0) {
+        setStatus(QStringLiteral("Color picker cancelled"));
+        Q_EMIT captureWorkflowFinished();
+        return;
+    }
+
+    double r = 0.0;
+    double g = 0.0;
+    double b = 0.0;
+    bool parsed = false;
+
+    const QVariant colorVar = results.value(QStringLiteral("color"));
+    if (colorVar.canConvert<QDBusArgument>()) {
+        const QDBusArgument arg = colorVar.value<QDBusArgument>();
+        arg.beginStructure();
+        arg >> r >> g >> b;
+        arg.endStructure();
+        parsed = true;
+    } else if (colorVar.typeId() == QMetaType::QVariantList) {
+        const QVariantList vals = colorVar.toList();
+        if (vals.size() >= 3) {
+            r = vals.at(0).toDouble();
+            g = vals.at(1).toDouble();
+            b = vals.at(2).toDouble();
+            parsed = true;
+        }
+    }
+
+    if (!parsed) {
+        setStatus(QStringLiteral("Failed to read picked color"));
+        Q_EMIT captureFailed(m_lastStatus);
+        return;
+    }
+
+    const int ri = std::clamp(static_cast<int>(std::lround(r * 255.0)), 0, 255);
+    const int gi = std::clamp(static_cast<int>(std::lround(g * 255.0)), 0, 255);
+    const int bi = std::clamp(static_cast<int>(std::lround(b * 255.0)), 0, 255);
+
+    const QString hex = QStringLiteral("#%1%2%3")
+                            .arg(ri, 2, 16, QLatin1Char('0'))
+                            .arg(gi, 2, 16, QLatin1Char('0'))
+                            .arg(bi, 2, 16, QLatin1Char('0'))
+                            .toUpper();
+    const QString rgbText = QStringLiteral("rgb(%1, %2, %3)").arg(ri).arg(gi).arg(bi);
+
+    if (QClipboard *clipboard = QGuiApplication::clipboard()) {
+        clipboard->setText(hex);
+    }
+
+    setStatus(QStringLiteral("Copied %1 (%2)").arg(hex, rgbText));
+    QProcess::startDetached(QStringLiteral("notify-send"), {
+        QStringLiteral("-a"), QStringLiteral("CatchyPills"),
+        QStringLiteral("-i"), QStringLiteral("color-picker"),
+        QStringLiteral("CatchyPills Eyedropper"),
+        QStringLiteral("Copied %1 to clipboard").arg(hex),
+    });
+
+    Q_EMIT colorPicked(hex, rgbText);
+    Q_EMIT captureWorkflowFinished();
 }
 
 void CaptureCoordinator::setStatus(const QString &status)

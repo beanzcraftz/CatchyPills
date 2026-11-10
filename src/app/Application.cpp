@@ -6,6 +6,8 @@
 #include "modules/media/MprisController.hpp"
 #include "modules/notes/NotesModel.hpp"
 #include "modules/shelf/FileShelfModel.hpp"
+#include "modules/sysmon/SysMonController.hpp"
+#include "modules/weather/WeatherController.hpp"
 #include "wayland/LayerSurfaceController.hpp"
 
 #include <QAction>
@@ -73,6 +75,8 @@ bool Application::initialize()
     m_mprisController = new media::MprisController(this);
     m_notesModel = new notes::NotesModel(this);
     m_fileShelfModel = new shelf::FileShelfModel(this);
+    m_sysMonController = new sysmon::SysMonController(this);
+    m_weatherController = new weather::WeatherController(this);
     m_captureCoordinator = new capture::CaptureCoordinator(m_imageProvider, this);
     m_islandLayer = new wayland::LayerSurfaceController(nullptr, this);
     m_overlayLayer = new wayland::LayerSurfaceController(nullptr, this);
@@ -109,6 +113,8 @@ bool Application::initialize()
     m_engine->rootContext()->setContextProperty(QStringLiteral("mprisController"), m_mprisController);
     m_engine->rootContext()->setContextProperty(QStringLiteral("notesModel"), m_notesModel);
     m_engine->rootContext()->setContextProperty(QStringLiteral("fileShelfModel"), m_fileShelfModel);
+    m_engine->rootContext()->setContextProperty(QStringLiteral("sysMonController"), m_sysMonController);
+    m_engine->rootContext()->setContextProperty(QStringLiteral("weatherController"), m_weatherController);
     m_engine->rootContext()->setContextProperty(QStringLiteral("captureCoordinator"), m_captureCoordinator);
     m_engine->rootContext()->setContextProperty(QStringLiteral("layerController"), m_islandLayer);
     m_engine->rootContext()->setContextProperty(QStringLiteral("overlayLayerController"), m_overlayLayer);

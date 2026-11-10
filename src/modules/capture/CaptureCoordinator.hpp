@@ -106,11 +106,13 @@ public:
     Q_INVOKABLE void startRecording(RecordingPreset preset = RecordingPreset::Mp4H264,
                                       const QRect &cropRect = QRect());
     Q_INVOKABLE void stopRecording();
+    Q_INVOKABLE void pickScreenColor();
 
 Q_SIGNALS:
     void regionOverlayRequested();
     void captureWorkflowFinished();
     void screenshotCaptured(const QString &savedPath, const QSize &dimensions);
+    void colorPicked(const QString &hex, const QString &rgb);
     void captureFailed(const QString &reason);
     void recordingChanged(bool recording);
     void recordingStopping();
@@ -124,6 +126,7 @@ Q_SIGNALS:
 private Q_SLOTS:
     void onScreenCastResponse(uint response, const QVariantMap &results);
     void onFileChooserResponse(uint response, const QVariantMap &results);
+    void onPickColorResponse(uint response, const QVariantMap &results);
 
 private:
     enum class ShotPurpose {
@@ -182,6 +185,7 @@ private:
     QVariantList m_pendingAnnotations;
     QString m_portalSessionHandle;
     QString m_fileChooserRequestPath;
+    QString m_pickColorRequestPath;
     QString m_activeOutputPath;
     QString m_rawRecordingPath;
     QString m_outputDirectory;
