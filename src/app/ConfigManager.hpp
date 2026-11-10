@@ -21,6 +21,9 @@ class ConfigManager final : public QObject
     Q_PROPERTY(QString targetMonitor READ targetMonitor WRITE setTargetMonitor NOTIFY targetMonitorChanged)
     Q_PROPERTY(int horizontalOffset READ horizontalOffset WRITE setHorizontalOffset NOTIFY horizontalOffsetChanged)
     Q_PROPERTY(int topMargin READ topMargin WRITE setTopMargin NOTIFY topMarginChanged)
+    Q_PROPERTY(int posX READ posX NOTIFY positionChanged)
+    Q_PROPERTY(int posY READ posY NOTIFY positionChanged)
+    Q_PROPERTY(bool hasCustomPosition READ hasCustomPosition NOTIFY positionChanged)
     Q_PROPERTY(int collapseDelayMs READ collapseDelayMs WRITE setCollapseDelayMs NOTIFY collapseDelayMsChanged)
     Q_PROPERTY(bool autoHideFullscreen READ autoHideFullscreen WRITE setAutoHideFullscreen NOTIFY autoHideFullscreenChanged)
 
@@ -46,6 +49,11 @@ public:
 
     int topMargin() const noexcept { return m_topMargin; }
     void setTopMargin(int margin);
+
+    int posX() const noexcept { return m_posX; }
+    int posY() const noexcept { return m_posY; }
+    bool hasCustomPosition() const noexcept { return m_posX >= 0 && m_posY >= 0; }
+    Q_INVOKABLE void setAbsolutePosition(int x, int y);
 
     int collapseDelayMs() const noexcept { return m_collapseDelayMs; }
     void setCollapseDelayMs(int delayMs);
@@ -74,6 +82,7 @@ Q_SIGNALS:
     void targetMonitorChanged(const QString &monitorName);
     void horizontalOffsetChanged(int offset);
     void topMarginChanged(int margin);
+    void positionChanged(int x, int y);
     void collapseDelayMsChanged(int delayMs);
     void autoHideFullscreenChanged(bool enabled);
     void clipboardPausedChanged(bool paused);
@@ -83,6 +92,7 @@ Q_SIGNALS:
     void startWithSystemChanged(bool enabled);
 
 private:
+    bool clearCustomPosition();
     QString detectDefaultUltrawideMonitor() const;
     QString userAutostartPath() const;
     QString sourceDesktopEntryPath() const;
@@ -91,6 +101,8 @@ private:
     QString m_targetMonitor;
     int m_horizontalOffset{0};
     int m_topMargin{0};
+    int m_posX{-1};
+    int m_posY{-1};
     int m_collapseDelayMs{220};
     bool m_autoHideFullscreen{true};
     bool m_clipboardPaused{false};

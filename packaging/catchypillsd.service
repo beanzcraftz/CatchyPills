@@ -13,7 +13,7 @@ Type=dbus
 BusName=io.hearnelabs.CatchyPillsDaemon
 ExecStart=/usr/bin/catchypillsd
 Restart=on-failure
-RestartSec=2s
+RestartSec=2
 TimeoutStopSec=5s
 
 [Install]

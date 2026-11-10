@@ -31,6 +31,12 @@ ConfigManager::ConfigManager(QObject *parent)
         m_settings.value(QStringLiteral("Display/horizontalOffset"), 0).toInt(), -1000, 1000);
     m_topMargin = std::clamp(
         m_settings.value(QStringLiteral("Display/topMargin"), 0).toInt(), 0, 64);
+    m_posX = m_settings.value(QStringLiteral("Display/posX"), -1).toInt();
+    m_posY = m_settings.value(QStringLiteral("Display/posY"), -1).toInt();
+    if (m_posX < 0 || m_posY < 0) {
+        m_posX = -1;
+        m_posY = -1;
+    }
     m_collapseDelayMs = std::clamp(
         m_settings.value(QStringLiteral("Display/collapseDelayMs"), 220).toInt(), 100, 1000);
     m_autoHideFullscreen =
@@ -66,7 +72,8 @@ QStringList ConfigManager::availableMonitors() const
 
 void ConfigManager::setTargetMonitor(const QString &monitorName)
 {
-    if (monitorName.isEmpty() || m_targetMonitor == monitorName) {
+    const bool hadCustom = clearCustomPosition();
+    if (monitorName.isEmpty() || (m_targetMonitor == monitorName && !hadCustom)) {
         return;
     }
     m_targetMonitor = monitorName;
@@ -77,8 +84,9 @@ void ConfigManager::setTargetMonitor(const QString &monitorName)
 
 void ConfigManager::setHorizontalOffset(int offset)
 {
+    const bool hadCustom = clearCustomPosition();
     const int clamped = std::clamp(offset, -1000, 1000);
-    if (m_horizontalOffset == clamped) {
+    if (m_horizontalOffset == clamped && !hadCustom) {
         return;
     }
     m_horizontalOffset = clamped;
@@ -89,14 +97,44 @@ void ConfigManager::setHorizontalOffset(int offset)
 
 void ConfigManager::setTopMargin(int margin)
 {
+    const bool hadCustom = clearCustomPosition();
     const int clamped = std::clamp(margin, 0, 64);
-    if (m_topMargin == clamped) {
+    if (m_topMargin == clamped && !hadCustom) {
         return;
     }
     m_topMargin = clamped;
     m_settings.setValue(QStringLiteral("Display/topMargin"), m_topMargin);
     m_settings.sync();
     Q_EMIT topMarginChanged(m_topMargin);
+}
+
+void ConfigManager::setAbsolutePosition(int x, int y)
+{
+    const int clampedX = std::max(0, x);
+    const int clampedY = std::max(0, y);
+    if (m_posX == clampedX && m_posY == clampedY) {
+        return;
+    }
+    m_posX = clampedX;
+    m_posY = clampedY;
+    m_settings.setValue(QStringLiteral("Display/posX"), m_posX);
+    m_settings.setValue(QStringLiteral("Display/posY"), m_posY);
+    m_settings.sync();
+    Q_EMIT positionChanged(m_posX, m_posY);
+}
+
+bool ConfigManager::clearCustomPosition()
+{
+    if (m_posX < 0 && m_posY < 0) {
+        return false;
+    }
+    m_posX = -1;
+    m_posY = -1;
+    m_settings.remove(QStringLiteral("Display/posX"));
+    m_settings.remove(QStringLiteral("Display/posY"));
+    m_settings.sync();
+    Q_EMIT positionChanged(-1, -1);
+    return true;
 }
 
 void ConfigManager::setCollapseDelayMs(int delayMs)

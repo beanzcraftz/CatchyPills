@@ -65,6 +65,7 @@ bool Application::initialize()
     m_imageProvider = new capture::CaptureImageProvider();
     m_daemonClient = new core::DaemonClient(this);
     m_captureCoordinator = new capture::CaptureCoordinator(m_imageProvider, this);
+    m_islandLayer = new wayland::LayerSurfaceController(nullptr, this);
     m_engine = new QQmlApplicationEngine(this);
 
     m_captureCoordinator->setOutputDirectory(m_configManager->screenshotsDir());
@@ -83,6 +84,8 @@ bool Application::initialize()
             this, &Application::applyDisplaySettings);
     connect(m_configManager, &ConfigManager::topMarginChanged,
             this, &Application::applyDisplaySettings);
+    connect(m_configManager, &ConfigManager::positionChanged,
+            this, &Application::applyDisplaySettings);
     connect(m_configManager, &ConfigManager::autoHideFullscreenChanged,
             this, &Application::applyDisplaySettings);
 
@@ -91,6 +94,7 @@ bool Application::initialize()
     m_engine->rootContext()->setContextProperty(QStringLiteral("configManager"), m_configManager);
     m_engine->rootContext()->setContextProperty(QStringLiteral("daemonClient"), m_daemonClient);
     m_engine->rootContext()->setContextProperty(QStringLiteral("captureCoordinator"), m_captureCoordinator);
+    m_engine->rootContext()->setContextProperty(QStringLiteral("layerController"), m_islandLayer);
 
     connect(m_engine,
             &QQmlApplicationEngine::objectCreationFailed,
@@ -112,8 +116,7 @@ bool Application::initialize()
         return false;
     }
 
-    m_islandLayer = new wayland::LayerSurfaceController(m_islandWindow, m_islandWindow);
-    m_engine->rootContext()->setContextProperty(QStringLiteral("layerController"), m_islandLayer);
+    m_islandLayer->setWindow(m_islandWindow);
 
     // 2. Preload fullscreen 3840x1080 CaptureOverlay on LayerOverlay.
     m_engine->loadFromModule("CatchyPills", "CaptureOverlay");
@@ -190,11 +193,20 @@ void Application::applyDisplaySettings()
     if (!m_islandLayer || !m_configManager) {
         return;
     }
-    m_islandLayer->applyDisplayPreferences(
-        m_configManager->targetMonitor(),
-        m_configManager->horizontalOffset(),
-        m_configManager->topMargin(),
-        m_configManager->autoHideFullscreen());
+    if (m_configManager->hasCustomPosition()) {
+        m_islandLayer->applyScreenAndLayer(
+            m_configManager->targetMonitor(),
+            m_configManager->autoHideFullscreen());
+        m_islandLayer->setAbsolutePosition(
+            m_configManager->posX(),
+            m_configManager->posY());
+    } else {
+        m_islandLayer->applyDisplayPreferences(
+            m_configManager->targetMonitor(),
+            m_configManager->horizontalOffset(),
+            m_configManager->topMargin(),
+            m_configManager->autoHideFullscreen());
+    }
 }
 
 void Application::setupTrayIcon()

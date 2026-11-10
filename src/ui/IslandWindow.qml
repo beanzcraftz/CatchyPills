@@ -12,6 +12,8 @@ Window {
     color: "transparent"
     flags: Qt.FramelessWindowHint
 
+    readonly property bool hasLayer: typeof layerController !== "undefined" && layerController !== null
+
     onVisibleChanged: {
         if (visible) {
             pillContainer.syncMask()
@@ -22,23 +24,38 @@ Window {
     Connections {
         target: captureCoordinator
         function onRegionOverlayRequested() {
+            hoverExpandDelay.stop()
             pillContainer.state = "collapsed"
-            if (typeof layerController !== "undefined" && layerController !== null) {
+            if (root.hasLayer) {
                 layerController.setKeyboardInteractive(false)
             }
         }
+    }
+
+    // Coalesce compositor margin commits (~2 vblanks) so stale pre-commit
+    // Wayland pointer coordinates do not accumulate or ping-pong during drags.
+    Timer {
+        id: dragThrottle
+        interval: 32
+        repeat: false
     }
 
     Rectangle {
         id: pillContainer
         state: "collapsed"
 
-        anchors.top: parent.top
-        anchors.horizontalCenter: parent.horizontalCenter
+        readonly property int collapsedX: root.hasLayer ? layerController.pillCanvasX : 250
+        readonly property int collapsedY: root.hasLayer ? layerController.pillCanvasY : 0
+        readonly property int expandedX: Math.max(0, Math.min(collapsedX - 200, root.width - 660))
+        readonly property int expandedY: Math.min(collapsedY, root.height - 390)
+        readonly property bool detachedFromTop: root.hasLayer && layerController.pillY > 4
+
+        x: collapsedX
+        y: collapsedY
         width: 260
         height: 36
-        topLeftRadius: 0
-        topRightRadius: 0
+        topLeftRadius: detachedFromTop ? 18 : 0
+        topRightRadius: detachedFromTop ? 18 : 0
         bottomLeftRadius: 18
         bottomRightRadius: 18
         // Translucent dark-glass surface backed by KWin's ext_background_effect_v1
@@ -56,7 +73,7 @@ Window {
         onHeightChanged: syncMask()
 
         function syncMask() {
-            if (typeof layerController !== "undefined" && layerController !== null) {
+            if (root.hasLayer) {
                 layerController.updateInputRegion(
                     Qt.rect(Math.round(x), Math.round(y), Math.round(width), Math.round(height)),
                     bottomLeftRadius
@@ -71,10 +88,26 @@ Window {
             onHoveredChanged: {
                 if (hovered) {
                     collapseDelay.stop()
-                    pillContainer.state = "expanded"
-                    layerController.setKeyboardInteractive(true)
+                    if (!collapsedHud.dragging && pillContainer.state !== "expanded") {
+                        hoverExpandDelay.restart()
+                    }
                 } else {
+                    hoverExpandDelay.stop()
                     collapseDelay.restart()
+                }
+            }
+        }
+
+        // Brief hover settle distinguishes intentional rest-to-open from click-and-drag.
+        Timer {
+            id: hoverExpandDelay
+            interval: 180
+            onTriggered: {
+                if (islandHover.hovered && !collapsedHud.dragging) {
+                    pillContainer.state = "expanded"
+                    if (root.hasLayer) {
+                        layerController.setKeyboardInteractive(true)
+                    }
                 }
             }
         }
@@ -83,9 +116,11 @@ Window {
             id: collapseDelay
             interval: configManager.collapseDelayMs
             onTriggered: {
-                if (!islandHover.hovered && !dashboard.searchInputFocused) {
+                if (!islandHover.hovered && !dashboard.searchInputFocused && !collapsedHud.dragging) {
                     pillContainer.state = "collapsed"
-                    layerController.setKeyboardInteractive(false)
+                    if (root.hasLayer) {
+                        layerController.setKeyboardInteractive(false)
+                    }
                 }
             }
         }
@@ -94,8 +129,12 @@ Window {
             State {
                 name: "collapsed"
                 PropertyChanges {
+                    pillContainer.x: pillContainer.collapsedX
+                    pillContainer.y: pillContainer.collapsedY
                     pillContainer.width: 260
                     pillContainer.height: 36
+                    pillContainer.topLeftRadius: pillContainer.detachedFromTop ? 18 : 0
+                    pillContainer.topRightRadius: pillContainer.detachedFromTop ? 18 : 0
                     pillContainer.bottomLeftRadius: 18
                     pillContainer.bottomRightRadius: 18
                 }
@@ -103,8 +142,12 @@ Window {
             State {
                 name: "expanded"
                 PropertyChanges {
+                    pillContainer.x: pillContainer.expandedX
+                    pillContainer.y: pillContainer.expandedY
                     pillContainer.width: 660
                     pillContainer.height: 390
+                    pillContainer.topLeftRadius: pillContainer.detachedFromTop ? 28 : 0
+                    pillContainer.topRightRadius: pillContainer.detachedFromTop ? 28 : 0
                     pillContainer.bottomLeftRadius: 28
                     pillContainer.bottomRightRadius: 28
                 }
@@ -117,12 +160,12 @@ Window {
                 to: "expanded"
                 ParallelAnimation {
                     SpringAnimation {
-                        properties: "width,height"
+                        properties: "x,y,width,height"
                         spring: 4.5
                         damping: 0.34
                     }
                     NumberAnimation {
-                        properties: "bottomLeftRadius,bottomRightRadius"
+                        properties: "topLeftRadius,topRightRadius,bottomLeftRadius,bottomRightRadius"
                         duration: 180
                         easing.type: Easing.OutCubic
                     }
@@ -133,7 +176,7 @@ Window {
                 to: "collapsed"
                 ParallelAnimation {
                     NumberAnimation {
-                        properties: "width,height,bottomLeftRadius,bottomRightRadius"
+                        properties: "x,y,width,height,topLeftRadius,topRightRadius,bottomLeftRadius,bottomRightRadius"
                         duration: 190
                         easing.type: Easing.OutCubic
                     }
@@ -152,6 +195,49 @@ Window {
             tickerText: daemonClient.latestClipPreview.length > 0
                         ? daemonClient.latestClipPreview
                         : "CatchyPills"
+
+            onDragPressed: hoverExpandDelay.stop()
+            onDragStarted: {
+                hoverExpandDelay.stop()
+                collapseDelay.stop()
+                pillContainer.state = "collapsed"
+                if (root.hasLayer) {
+                    layerController.setKeyboardInteractive(false)
+                }
+            }
+            onDragMoved: function(dx, dy) {
+                if (!root.hasLayer || dragThrottle.running) {
+                    return
+                }
+                var stepX = Math.round(dx)
+                var stepY = Math.round(dy)
+                if (stepX === 0 && stepY === 0) {
+                    return
+                }
+                var prevSurfX = layerController.surfaceX
+                var prevSurfY = layerController.surfaceY
+                layerController.setAbsolutePosition(
+                    layerController.pillX + stepX,
+                    layerController.pillY + stepY
+                )
+                if (layerController.surfaceX !== prevSurfX || layerController.surfaceY !== prevSurfY) {
+                    dragThrottle.restart()
+                }
+            }
+            onDragFinished: {
+                dragThrottle.stop()
+                if (root.hasLayer) {
+                    configManager.setAbsolutePosition(layerController.pillX, layerController.pillY)
+                }
+            }
+            onClicked: {
+                hoverExpandDelay.stop()
+                collapseDelay.stop()
+                pillContainer.state = "expanded"
+                if (root.hasLayer) {
+                    layerController.setKeyboardInteractive(true)
+                }
+            }
         }
 
         ExpandedDashboard {

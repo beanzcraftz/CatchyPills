@@ -19,6 +19,11 @@ LayerSurfaceController::LayerSurfaceController(QQuickWindow *window, QObject *pa
 {
 }
 
+void LayerSurfaceController::setWindow(QQuickWindow *window)
+{
+    m_window = window;
+}
+
 void LayerSurfaceController::attachToLayerShell(QScreen *preferredScreen)
 {
     if (!m_window) {
@@ -54,29 +59,28 @@ void LayerSurfaceController::attachToLayerShell(QScreen *preferredScreen)
     // to render above the island cleanly on KWin (auto-hide on fullscreen).
     layerWindow->setLayer(LayerShellQt::Window::LayerTop);
 
-    // Anchor Top | Left so horizontal offset margins shift smoothly pixel-by-pixel
-    // across the 3840px wide ultrawide monitor without compositor jumps.
+    // Anchor exclusively to Top | Left so absolute QMargins(x, y, 0, 0) offsets
+    // position the zwlr_layer_surface_v1 anywhere across the target display.
     const auto anchors = LayerShellQt::Window::Anchors(LayerShellQt::Window::AnchorTop)
                          | LayerShellQt::Window::AnchorLeft;
     layerWindow->setAnchors(anchors);
 
     // ExclusiveZone = 0 does not shrink maximized windows' usable work area.
     layerWindow->setExclusiveZone(0);
-    const int screenW = targetScreen ? targetScreen->geometry().width() : 3840;
-    const int centerLeft = std::max(0, (screenW - kDefaultCanvasSize.width()) / 2);
-    layerWindow->setMargins(QMargins(centerLeft, 0, 0, 0));
     layerWindow->setDesiredSize(kDefaultCanvasSize);
 
     // Never steal keyboard focus on startup or during ambient HUD updates.
     layerWindow->setKeyboardInteractivity(LayerShellQt::Window::KeyboardInteractivityNone);
     layerWindow->setActivateOnShow(false);
     layerWindow->setScope(QStringLiteral("catchypills-island"));
+
+    const int screenW = targetScreen ? targetScreen->geometry().width() : 3840;
+    const int centerPillX = std::max(0, (screenW - kCollapsedPillSize.width()) / 2);
+    setAbsolutePosition(centerPillX, 0);
 }
 
-void LayerSurfaceController::applyDisplayPreferences(
+void LayerSurfaceController::applyScreenAndLayer(
     const QString &monitorName,
-    int horizontalOffset,
-    int topMargin,
     bool autoHideFullscreen)
 {
     if (!m_window) {
@@ -102,22 +106,101 @@ void LayerSurfaceController::applyDisplayPreferences(
     // In KWin Wayland, fullscreen windows sit above LayerTop and below LayerOverlay.
     layerWindow->setLayer(autoHideFullscreen ? LayerShellQt::Window::LayerTop
                                              : LayerShellQt::Window::LayerOverlay);
+}
+
+void LayerSurfaceController::setAbsolutePosition(int x, int y)
+{
+    if (!m_window) {
+        return;
+    }
+
+    auto *layerWindow = LayerShellQt::Window::get(m_window);
+    if (!layerWindow) {
+        return;
+    }
+
+    QScreen *targetScreen = m_window->screen();
+    if (!targetScreen) {
+        targetScreen = resolveUltrawideScreen(nullptr);
+    }
 
     const int screenW = targetScreen ? targetScreen->geometry().width() : 3840;
-    const int maxLeft = std::max(0, screenW - kDefaultCanvasSize.width());
-    const int centerLeft = (screenW - kDefaultCanvasSize.width()) / 2;
-    const int clampedLeft = std::clamp(centerLeft + horizontalOffset, 0, maxLeft);
-    const int clampedTop = std::clamp(topMargin, 0, 64);
+    const int screenH = targetScreen ? targetScreen->geometry().height() : 1080;
+
+    const int maxPillX = std::max(0, screenW - kCollapsedPillSize.width());
+    const int maxPillY = std::max(0, screenH - kCollapsedPillSize.height());
+    const int clampedPillX = std::clamp(x, 0, maxPillX);
+    const int clampedPillY = std::clamp(y, 0, maxPillY);
+
+    const int centerOffsetX = (kDefaultCanvasSize.width() - kCollapsedPillSize.width()) / 2;
+    const int maxSurfX = std::max(0, screenW - kDefaultCanvasSize.width());
+    const int maxSurfY = std::max(0, screenH - kDefaultCanvasSize.height());
+
+    const int newSurfX = std::clamp(clampedPillX - centerOffsetX, 0, maxSurfX);
+    const int newSurfY = std::clamp(clampedPillY, 0, maxSurfY);
+    const int newCanvasX = std::clamp(
+        clampedPillX - newSurfX, 0, kDefaultCanvasSize.width() - kCollapsedPillSize.width());
+    const int newCanvasY = std::clamp(
+        clampedPillY - newSurfY, 0, kDefaultCanvasSize.height() - kCollapsedPillSize.height());
 
     const auto anchors = LayerShellQt::Window::Anchors(LayerShellQt::Window::AnchorTop)
                          | LayerShellQt::Window::AnchorLeft;
-    layerWindow->setAnchors(anchors);
-    layerWindow->setMargins(QMargins(clampedLeft, clampedTop, 0, 0));
+    if (layerWindow->anchors() != anchors) {
+        layerWindow->setAnchors(anchors);
+    }
 
-    // Re-sync blur region if window is already mapped.
+    const QMargins targetMargins(newSurfX, newSurfY, 0, 0);
+    const bool surfaceMoved = (m_surfaceX != newSurfX || m_surfaceY != newSurfY);
+    const bool anyChanged = surfaceMoved
+                            || m_pillX != clampedPillX
+                            || m_pillY != clampedPillY
+                            || m_pillCanvasX != newCanvasX
+                            || m_pillCanvasY != newCanvasY;
+
+    m_pillX = clampedPillX;
+    m_pillY = clampedPillY;
+    m_pillCanvasX = newCanvasX;
+    m_pillCanvasY = newCanvasY;
+
+    if (surfaceMoved || layerWindow->margins() != targetMargins) {
+        m_surfaceX = newSurfX;
+        m_surfaceY = newSurfY;
+        layerWindow->setMargins(targetMargins);
+        if (m_window->isVisible()) {
+            m_window->requestUpdate();
+        }
+    }
+
+    if (anyChanged) {
+        Q_EMIT positionChanged();
+    }
+
     if (m_window->isVisible() && !m_clickThrough && m_lastPillRect.isValid()) {
         updateInputRegion(m_lastPillRect, m_lastCornerRadius);
     }
+}
+
+void LayerSurfaceController::applyDisplayPreferences(
+    const QString &monitorName,
+    int horizontalOffset,
+    int topMargin,
+    bool autoHideFullscreen)
+{
+    applyScreenAndLayer(monitorName, autoHideFullscreen);
+
+    if (!m_window) {
+        return;
+    }
+
+    QScreen *targetScreen = m_window->screen();
+    if (!targetScreen) {
+        targetScreen = resolveUltrawideScreen(nullptr);
+    }
+
+    const int screenW = targetScreen ? targetScreen->geometry().width() : 3840;
+    const int centerPillX = (screenW - kCollapsedPillSize.width()) / 2;
+    const int clampedTop = std::clamp(topMargin, 0, 64);
+    setAbsolutePosition(centerPillX + horizontalOffset, clampedTop);
 }
 
 void LayerSurfaceController::attachAsFullscreenOverlay(QScreen *preferredScreen)

@@ -20,6 +20,7 @@ use serde::Serialize;
 use wayland_client::{
     Connection as WaylandConnection, Dispatch, Proxy, QueueHandle,
     backend::ObjectId,
+    delegate_dispatch, event_created_child,
     protocol::{wl_registry, wl_seat},
 };
 use wayland_protocols::ext::data_control::v1::client::{
@@ -397,14 +398,16 @@ impl Dispatch<wl_registry::WlRegistry, ()> for ClipboardWaylandState {
     }
 }
 
-impl Dispatch<ExtDataControlManagerV1, ()> for ClipboardWaylandState {
+struct ExtDataControlHandler;
+
+impl Dispatch<ExtDataControlManagerV1, (), ClipboardWaylandState> for ExtDataControlHandler {
     fn event(
-        _state: &mut Self,
+        _state: &mut ClipboardWaylandState,
         _proxy: &ExtDataControlManagerV1,
         _event: <ExtDataControlManagerV1 as Proxy>::Event,
         _data: &(),
         _conn: &WaylandConnection,
-        _qh: &QueueHandle<Self>,
+        _qh: &QueueHandle<ClipboardWaylandState>,
     ) {
     }
 }
@@ -421,14 +424,14 @@ impl Dispatch<wl_seat::WlSeat, ()> for ClipboardWaylandState {
     }
 }
 
-impl Dispatch<ExtDataControlDeviceV1, ()> for ClipboardWaylandState {
+impl Dispatch<ExtDataControlDeviceV1, (), ClipboardWaylandState> for ExtDataControlHandler {
     fn event(
-        state: &mut Self,
+        state: &mut ClipboardWaylandState,
         _proxy: &ExtDataControlDeviceV1,
         event: ext_data_control_device_v1::Event,
         _data: &(),
         conn: &WaylandConnection,
-        _qh: &QueueHandle<Self>,
+        _qh: &QueueHandle<ClipboardWaylandState>,
     ) {
         match event {
             ext_data_control_device_v1::Event::DataOffer { id } => {
@@ -448,16 +451,21 @@ impl Dispatch<ExtDataControlDeviceV1, ()> for ClipboardWaylandState {
             _ => {}
         }
     }
+
+    // Required by wayland-client 0.31 whenever a server event constructs a new child proxy.
+    event_created_child!(ClipboardWaylandState, ExtDataControlDeviceV1, [
+        ext_data_control_device_v1::EVT_DATA_OFFER_OPCODE => (ExtDataControlOfferV1, ())
+    ]);
 }
 
-impl Dispatch<ExtDataControlOfferV1, ()> for ClipboardWaylandState {
+impl Dispatch<ExtDataControlOfferV1, (), ClipboardWaylandState> for ExtDataControlHandler {
     fn event(
-        state: &mut Self,
+        state: &mut ClipboardWaylandState,
         proxy: &ExtDataControlOfferV1,
         event: ext_data_control_offer_v1::Event,
         _data: &(),
         _conn: &WaylandConnection,
-        _qh: &QueueHandle<Self>,
+        _qh: &QueueHandle<ClipboardWaylandState>,
     ) {
         if let ext_data_control_offer_v1::Event::Offer { mime_type } = event {
             if let Some(mimes) = state.offers.get_mut(&proxy.id()) {
@@ -466,6 +474,10 @@ impl Dispatch<ExtDataControlOfferV1, ()> for ClipboardWaylandState {
         }
     }
 }
+
+delegate_dispatch!(ClipboardWaylandState: [ExtDataControlManagerV1: ()] => ExtDataControlHandler);
+delegate_dispatch!(ClipboardWaylandState: [ExtDataControlDeviceV1: ()] => ExtDataControlHandler);
+delegate_dispatch!(ClipboardWaylandState: [ExtDataControlOfferV1: ()] => ExtDataControlHandler);
 
 fn spawn_clipboard_worker(
     db: Arc<Mutex<Connection>>,
@@ -515,6 +527,9 @@ fn spawn_clipboard_worker(
             while !shutdown.load(Ordering::Relaxed) {
                 if let Err(err) = queue.blocking_dispatch(&mut state) {
                     eprintln!("[catchypillsd] Wayland dispatch error: {err}");
+                    if !shutdown.load(Ordering::Relaxed) {
+                        std::process::exit(1);
+                    }
                     break;
                 }
             }

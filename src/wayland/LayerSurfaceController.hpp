@@ -21,15 +21,33 @@ class LayerSurfaceController final : public QObject
 {
     Q_OBJECT
     Q_PROPERTY(bool clickThrough READ isClickThrough WRITE setClickThrough NOTIFY clickThroughChanged)
+    Q_PROPERTY(int surfaceX READ surfaceX NOTIFY positionChanged)
+    Q_PROPERTY(int surfaceY READ surfaceY NOTIFY positionChanged)
+    Q_PROPERTY(int pillX READ pillX NOTIFY positionChanged)
+    Q_PROPERTY(int pillY READ pillY NOTIFY positionChanged)
+    Q_PROPERTY(int pillCanvasX READ pillCanvasX NOTIFY positionChanged)
+    Q_PROPERTY(int pillCanvasY READ pillCanvasY NOTIFY positionChanged)
 
 public:
-    explicit LayerSurfaceController(QQuickWindow *window, QObject *parent = nullptr);
+    explicit LayerSurfaceController(QQuickWindow *window = nullptr, QObject *parent = nullptr);
+    void setWindow(QQuickWindow *window);
 
     /**
      * Binds LayerShellQt properties BEFORE the QWindow maps its wl_surface.
      * Anchors flush to the top-center bezel of the target 3840x1080 display.
      */
     void attachToLayerShell(QScreen *preferredScreen = nullptr);
+
+    /**
+     * Updates target monitor and fullscreen auto-hide layer policy without moving the surface.
+     */
+    Q_INVOKABLE void applyScreenAndLayer(const QString &monitorName, bool autoHideFullscreen);
+
+    /**
+     * Places the zwlr_layer_surface_v1 surface using AnchorTop | AnchorLeft and
+     * QMargins(x, y, 0, 0) so the collapsed pill rests at exact screen coordinates (x, y).
+     */
+    Q_INVOKABLE void setAbsolutePosition(int x, int y);
 
     /**
      * Applies live Display & Position settings (target monitor, horizontal offset,
@@ -55,6 +73,13 @@ public:
     Q_INVOKABLE void setClickThrough(bool enabled);
     bool isClickThrough() const noexcept { return m_clickThrough; }
 
+    int surfaceX() const noexcept { return m_surfaceX; }
+    int surfaceY() const noexcept { return m_surfaceY; }
+    int pillX() const noexcept { return m_pillX; }
+    int pillY() const noexcept { return m_pillY; }
+    int pillCanvasX() const noexcept { return m_pillCanvasX; }
+    int pillCanvasY() const noexcept { return m_pillCanvasY; }
+
     /**
      * Toggles Wayland keyboard interactivity between None (passive HUD) and
      * OnDemand (expanded Search / quick input without permanently stealing focus).
@@ -62,9 +87,11 @@ public:
     Q_INVOKABLE void setKeyboardInteractive(bool interactive);
 
     static constexpr QSize kDefaultCanvasSize{760, 460};
+    static constexpr QSize kCollapsedPillSize{260, 36};
 
 Q_SIGNALS:
     void clickThroughChanged(bool enabled);
+    void positionChanged();
 
 private:
     QScreen *findScreenByName(const QString &monitorName) const;
@@ -75,6 +102,12 @@ private:
     QRect m_lastPillRect;
     int m_lastCornerRadius{18};
     bool m_clickThrough{false};
+    int m_surfaceX{0};
+    int m_surfaceY{0};
+    int m_pillX{0};
+    int m_pillY{0};
+    int m_pillCanvasX{(kDefaultCanvasSize.width() - kCollapsedPillSize.width()) / 2};
+    int m_pillCanvasY{0};
 };
 
 } // namespace catchypills::wayland

@@ -8,6 +8,64 @@ Item {
     property string tickerText: "CatchyPills"
     property bool recordingActive: false
     property bool daemonOnline: true
+    readonly property bool dragging: dragArea.dragging
+
+    signal dragPressed()
+    signal dragStarted()
+    signal dragMoved(real dx, real dy)
+    signal dragFinished()
+    signal clicked()
+
+    MouseArea {
+        id: dragArea
+        anchors.fill: parent
+        acceptedButtons: Qt.LeftButton
+        hoverEnabled: false
+        cursorShape: (pressed || dragging) ? Qt.ClosedHandCursor : Qt.PointingHandCursor
+
+        property real pressX: 0
+        property real pressY: 0
+        property bool dragging: false
+
+        onPressed: function(mouse) {
+            pressX = mouse.x
+            pressY = mouse.y
+            dragging = false
+            root.dragPressed()
+        }
+
+        onPositionChanged: function(mouse) {
+            if (!pressed) {
+                return
+            }
+            var dx = mouse.x - pressX
+            var dy = mouse.y - pressY
+            if (!dragging) {
+                if (Math.hypot(dx, dy) < 5) {
+                    return
+                }
+                dragging = true
+                root.dragStarted()
+            }
+            root.dragMoved(dx, dy)
+        }
+
+        onReleased: function(mouse) {
+            if (dragging) {
+                dragging = false
+                root.dragFinished()
+            } else if (mouse.x >= 0 && mouse.x <= width && mouse.y >= 0 && mouse.y <= height) {
+                root.clicked()
+            }
+        }
+
+        onCanceled: {
+            if (dragging) {
+                dragging = false
+                root.dragFinished()
+            }
+        }
+    }
 
     Row {
         anchors.centerIn: parent
