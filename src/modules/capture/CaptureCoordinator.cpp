@@ -4,6 +4,7 @@
 
 #include <QBuffer>
 #include <QClipboard>
+#include <QDBusArgument>
 #include <QDBusConnection>
 #include <QDBusMessage>
 #include <QDBusObjectPath>
@@ -13,11 +14,14 @@
 #include <QDBusUnixFileDescriptor>
 #include <QDateTime>
 #include <QDir>
+#include <QFile>
+#include <QFileInfo>
 #include <QGuiApplication>
 #include <QMimeData>
 #include <QPainter>
 #include <QPen>
 #include <QPolygonF>
+#include <QProcess>
 #include <QStandardPaths>
 #include <QUuid>
 #include <QVariantMap>
@@ -40,6 +44,7 @@ constexpr const char *kKWinShotIface = "org.kde.KWin.ScreenShot2";
 constexpr const char *kPortalService = "org.freedesktop.portal.Desktop";
 constexpr const char *kPortalPath = "/org/freedesktop/portal/desktop";
 constexpr const char *kScreenCastIface = "org.freedesktop.portal.ScreenCast";
+constexpr const char *kSessionIface = "org.freedesktop.portal.Session";
 constexpr const char *kRequestIface = "org.freedesktop.portal.Request";
 } // namespace
 
@@ -78,6 +83,7 @@ CaptureCoordinator::~CaptureCoordinator()
     if (m_recorder && m_recorder->isActive()) {
         m_recorder->stop();
     }
+    closePortalSession();
 }
 
 void CaptureCoordinator::captureWorkspace(bool includeCursor)
@@ -86,6 +92,7 @@ void CaptureCoordinator::captureWorkspace(bool includeCursor)
     m_pendingLogicalCrop = QRect();
     m_pendingSaveFile = true;
     m_pendingCopyClipboard = m_autoCopyEnabled;
+    m_pendingOmniShotHandoff = false;
     invokeScreenShot2(QStringLiteral("CaptureWorkspace"), {}, includeCursor, ShotPurpose::SaveAndCopy);
 }
 
@@ -98,7 +105,36 @@ void CaptureCoordinator::prepareRegionCapture(bool includeCursor)
 {
     m_pendingAnnotations.clear();
     m_pendingLogicalCrop = QRect();
+    m_pendingOmniShotHandoff = false;
     invokeScreenShot2(QStringLiteral("CaptureWorkspace"), {}, includeCursor, ShotPurpose::OverlayBackdrop);
+}
+
+void CaptureCoordinator::captureToOmniShot(
+    int x,
+    int y,
+    int width,
+    int height,
+    const QVariantList &annotations,
+    bool includeCursor)
+{
+    if (width <= 0 || height <= 0) {
+        Q_EMIT captureFailed(QStringLiteral("Invalid capture area dimensions"));
+        return;
+    }
+
+    m_pendingLogicalCrop = QRect(x, y, width, height);
+    m_pendingAnnotations = annotations;
+    m_pendingSaveFile = false;
+    m_pendingCopyClipboard = false;
+    m_pendingOmniShotHandoff = true;
+
+    const QVariantList args{
+        x,
+        y,
+        static_cast<uint>(width),
+        static_cast<uint>(height),
+    };
+    invokeScreenShot2(QStringLiteral("CaptureArea"), args, includeCursor, ShotPurpose::SaveAndCopy);
 }
 
 void CaptureCoordinator::finalizeRegionCapture(
@@ -120,6 +156,7 @@ void CaptureCoordinator::finalizeRegionCapture(
     m_pendingAnnotations = annotations;
     m_pendingSaveFile = saveToFile;
     m_pendingCopyClipboard = copyToClipboard;
+    m_pendingOmniShotHandoff = false;
 
     const QVariantList args{
         x,
@@ -136,8 +173,6 @@ void CaptureCoordinator::invokeScreenShot2(
     bool includeCursor,
     ShotPurpose purpose)
 {
-    // Create an anonymous pipe; KWin writes raw BGRA/RGBX pixels into fds[1]
-    // while returning width/height/stride/format metadata over D-Bus.
     int fds[2]{-1, -1};
     if (::pipe2(fds, O_CLOEXEC) != 0) {
         Q_EMIT captureFailed(QStringLiteral("Failed to create pipe for ScreenShot2"));
@@ -145,12 +180,10 @@ void CaptureCoordinator::invokeScreenShot2(
     }
 
     QDBusUnixFileDescriptor dbusWriteFd(fds[1]);
-    ::close(fds[1]); // Close local write end so EOF arrives when KWin finishes.
+    ::close(fds[1]);
 
     const int readFd = fds[0];
 
-    // Drain the pipe concurrently on a worker future to prevent a 64KB pipe-buffer
-    // deadlock on large 3840x1080 (~16.6 MB) captures before KWin returns its D-Bus reply.
     auto bytesFuture = std::make_shared<std::future<QByteArray>>(
         std::async(std::launch::async, [readFd]() {
             QByteArray buffer;
@@ -197,6 +230,7 @@ void CaptureCoordinator::invokeScreenShot2(
                 QDBusPendingReply<QVariantMap> reply = *w;
                 if (!reply.isValid()) {
                     const QString err = reply.error().message();
+                    m_pendingOmniShotHandoff = false;
                     setStatus(err);
                     Q_EMIT captureFailed(err);
                     return;
@@ -209,7 +243,6 @@ void CaptureCoordinator::invokeScreenShot2(
                 const int fmtCode = meta.value(QStringLiteral("format"),
                                                static_cast<int>(QImage::Format_RGBX8888)).toInt();
 
-                // Collect drained pixel bytes off the main thread, then marshal back.
                 std::thread([this, bytesFuture, purpose, width, height, stride, fmtCode]() {
                     const QByteArray raw = bytesFuture->get();
                     QImage image;
@@ -230,6 +263,7 @@ void CaptureCoordinator::invokeScreenShot2(
 
                     QMetaObject::invokeMethod(this, [this, image, purpose]() {
                         if (image.isNull()) {
+                            m_pendingOmniShotHandoff = false;
                             setStatus(QStringLiteral("Capture returned empty pixel buffer"));
                             Q_EMIT captureFailed(m_lastStatus);
                             return;
@@ -256,6 +290,34 @@ void CaptureCoordinator::handleCapturedImage(QImage image)
         m_pendingAnnotations.clear();
     }
 
+    if (m_pendingOmniShotHandoff) {
+        m_pendingOmniShotHandoff = false;
+        const QString tempDir = QStandardPaths::writableLocation(QStandardPaths::TempLocation);
+        QDir().mkpath(tempDir);
+        const QString stamp = QDateTime::currentDateTime().toString(QStringLiteral("yyyyMMdd_HHmmss_zzz"));
+        const QString handoffPath = QStringLiteral("%1/CatchyPills_omnishot_%2.png").arg(tempDir, stamp);
+
+        if (!image.save(handoffPath, "PNG")) {
+            setStatus(QStringLiteral("Failed to write OmniShot handoff image"));
+            Q_EMIT captureFailed(m_lastStatus);
+            return;
+        }
+
+        // Launch installed OmniShot directly into editor mode with the exact cropped image
+        // (`omnishot --edit-existing FILE`; `-r` in omnishot takes no coordinate argument).
+        if (!QProcess::startDetached(QStringLiteral("omnishot"),
+                                     {QStringLiteral("--edit-existing"), handoffPath})) {
+            setStatus(QStringLiteral("Failed to start omnishot"));
+            Q_EMIT captureFailed(m_lastStatus);
+            return;
+        }
+
+        setStatus(QStringLiteral("Opened %1x%2 in OmniShot").arg(image.width()).arg(image.height()));
+        Q_EMIT screenshotCaptured(handoffPath, image.size());
+        Q_EMIT captureWorkflowFinished();
+        return;
+    }
+
     QString outPath;
     if (m_pendingSaveFile) {
         outPath = buildOutputPath(QStringLiteral("png"));
@@ -266,7 +328,6 @@ void CaptureCoordinator::handleCapturedImage(QImage image)
         }
     }
 
-    // Publish captured pixels directly to the Wayland clipboard when requested.
     if (m_pendingCopyClipboard) {
         if (QClipboard *clipboard = QGuiApplication::clipboard()) {
             QByteArray pngBytes;
@@ -289,6 +350,7 @@ void CaptureCoordinator::handleCapturedImage(QImage image)
         setStatus(QStringLiteral("Copied %1x%2 to clipboard").arg(image.width()).arg(image.height()));
     }
     Q_EMIT screenshotCaptured(outPath, image.size());
+    Q_EMIT captureWorkflowFinished();
 }
 
 void CaptureCoordinator::applyAnnotations(
@@ -367,73 +429,89 @@ void CaptureCoordinator::applyAnnotations(
     }
 }
 
+void CaptureCoordinator::startRegionRecording(int x, int y, int width, int height)
+{
+    startRecording(RecordingPreset::Mp4H264, QRect(x, y, width, height));
+}
+
 void CaptureCoordinator::startRecording(RecordingPreset preset, const QRect &cropRect)
 {
-    if (m_recording) {
+    Q_UNUSED(preset)
+    if (m_recording || m_croppingInProgress || m_portalStep != PortalStep::Idle) {
         return;
     }
 
-    m_activePreset = preset;
+    m_activePreset = RecordingPreset::Mp4H264;
     m_pendingCropRect = cropRect;
+    m_streamPos = QPoint(0, 0);
+    m_streamSize = QSize();
+    m_stopRequested = false;
 
-    const QString ext = (preset == RecordingPreset::Gif) ? QStringLiteral("gif")
-                      : (preset == RecordingPreset::WebP) ? QStringLiteral("webp")
-                                                          : QStringLiteral("mp4");
-    m_activeOutputPath = buildOutputPath(ext);
+    m_activeOutputPath = buildVideoOutputPath(QStringLiteral("screencast"));
+    m_rawRecordingPath = (cropRect.isValid() && cropRect.width() > 4 && cropRect.height() > 4)
+        ? buildVideoOutputPath(QStringLiteral(".raw_screencast"))
+        : QString();
 
     if (!m_recorder) {
         m_recorder = new PipeWireRecord(this);
         connect(m_recorder, &PipeWireBaseEncodedStream::stateChanged, this, [this]() {
-            const auto st = m_recorder->state();
-            const bool nowActive = (st == PipeWireBaseEncodedStream::Recording
-                                    || st == PipeWireBaseEncodedStream::Paused);
-            if (m_recording != nowActive) {
-                m_recording = nowActive;
-                Q_EMIT recordingChanged(m_recording);
+            if (!m_recorder) {
+                return;
             }
-            if (st == PipeWireBaseEncodedStream::Idle && !m_activeOutputPath.isEmpty()) {
-                setStatus(QStringLiteral("Recording saved"));
-                Q_EMIT recordingFinished(m_activeOutputPath);
+            const auto st = m_recorder->state();
+            if (st == PipeWireBaseEncodedStream::Idle && m_stopRequested) {
+                m_stopRequested = false;
+                closePortalSession();
+                finalizeRecordedVideo();
             }
         });
         connect(m_recorder, &PipeWireBaseEncodedStream::errorFound, this, [this](const QString &err) {
+            m_stopRequested = false;
             m_recording = false;
             Q_EMIT recordingChanged(false);
+            closePortalSession();
             setStatus(err);
             Q_EMIT captureFailed(err);
         });
     }
 
-    // Configure KPipeWire encoder presets (GIF uses built-in PipeWireBaseEncodedStream::Gif).
-    m_recorder->setOutput(m_activeOutputPath);
+    m_recorder->setOutput(m_rawRecordingPath.isEmpty() ? m_activeOutputPath : m_rawRecordingPath);
     m_recorder->setEncodingPreference(PipeWireBaseEncodedStream::Speed);
-    switch (preset) {
-    case RecordingPreset::Gif:
-        m_recorder->setEncoder(PipeWireBaseEncodedStream::Gif);
-        m_recorder->setMaxFramerate(15, 1);
-        m_recorder->setQuality(80);
-        break;
-    case RecordingPreset::WebP:
-        m_recorder->setEncoder(PipeWireBaseEncodedStream::WebP);
-        m_recorder->setMaxFramerate(20, 1);
-        m_recorder->setQuality(80);
-        break;
-    case RecordingPreset::Mp4H264:
-        m_recorder->setEncoder(PipeWireBaseEncodedStream::H264Main);
-        m_recorder->setMaxFramerate(60, 1);
-        m_recorder->setQuality(85);
-        break;
-    }
+    m_recorder->setEncoder(PipeWireBaseEncodedStream::H264Main);
+    m_recorder->setMaxFramerate(60, 1);
+    m_recorder->setQuality(85);
 
-    // Kick off XDG ScreenCast portal handshake to obtain PipeWire remote FD + objectSerial.
+    m_recording = true;
+    Q_EMIT recordingChanged(true);
+
     requestPortalScreenCastSession();
 }
 
 void CaptureCoordinator::stopRecording()
 {
+    if (!m_recording) {
+        return;
+    }
+
+    m_stopRequested = true;
+    setStatus(QStringLiteral("Finalizing MP4 recording..."));
+
     if (m_recorder && m_recorder->isActive()) {
-        setStatus(QStringLiteral("Finalizing recording..."));
         m_recorder->stop();
+    } else if (m_portalStep != PortalStep::Idle) {
+        // Portal flow hasn't started the KPipeWire encoder yet.
+        m_portalStep = PortalStep::Idle;
+        m_stopRequested = false;
+        m_recording = false;
+        Q_EMIT recordingChanged(false);
+        closePortalSession();
+        Q_EMIT captureWorkflowFinished();
+    } else if (!m_croppingInProgress) {
+        m_stopRequested = false;
+        m_recording = false;
+        Q_EMIT recordingChanged(false);
+        closePortalSession();
+        Q_EMIT captureWorkflowFinished();
     }
 }
 
@@ -445,6 +523,8 @@ void CaptureCoordinator::requestPortalScreenCastSession()
     QVariantMap options;
     options.insert(QStringLiteral("handle_token"), token);
     options.insert(QStringLiteral("session_handle_token"), token);
+
+    m_portalStep = PortalStep::CreateSession;
 
     auto msg = QDBusMessage::createMethodCall(
         QString::fromLatin1(kPortalService),
@@ -461,6 +541,92 @@ void CaptureCoordinator::requestPortalScreenCastSession()
         w->deleteLater();
         QDBusPendingReply<QDBusObjectPath> reply = *w;
         if (!reply.isValid()) {
+            m_portalStep = PortalStep::Idle;
+            m_recording = false;
+            Q_EMIT recordingChanged(false);
+            setStatus(reply.error().message());
+            Q_EMIT captureFailed(m_lastStatus);
+            return;
+        }
+
+        QDBusConnection::sessionBus().connect(
+            QString::fromLatin1(kPortalService),
+            reply.value().path(),
+            QString::fromLatin1(kRequestIface),
+            QStringLiteral("Response"),
+            this,
+            SLOT(onScreenCastResponse(uint,QVariantMap)));
+    });
+}
+
+void CaptureCoordinator::selectPortalSources()
+{
+    const QString token = QStringLiteral("cp_sel_%1")
+                              .arg(QUuid::createUuid().toString(QUuid::Id128));
+
+    QVariantMap options;
+    options.insert(QStringLiteral("handle_token"), token);
+    options.insert(QStringLiteral("types"), static_cast<quint32>(1 | 2)); // Monitor | Window
+    options.insert(QStringLiteral("multiple"), false);
+    options.insert(QStringLiteral("cursor_mode"), static_cast<quint32>(2)); // Embedded cursor
+
+    auto msg = QDBusMessage::createMethodCall(
+        QString::fromLatin1(kPortalService),
+        QString::fromLatin1(kPortalPath),
+        QString::fromLatin1(kScreenCastIface),
+        QStringLiteral("SelectSources"));
+    msg << QDBusObjectPath(m_portalSessionHandle) << options;
+
+    auto *watcher = new QDBusPendingCallWatcher(
+        QDBusConnection::sessionBus().asyncCall(msg), this);
+    connect(watcher, &QDBusPendingCallWatcher::finished, this, [this](QDBusPendingCallWatcher *w) {
+        w->deleteLater();
+        QDBusPendingReply<QDBusObjectPath> reply = *w;
+        if (!reply.isValid()) {
+            m_portalStep = PortalStep::Idle;
+            m_recording = false;
+            Q_EMIT recordingChanged(false);
+            closePortalSession();
+            setStatus(reply.error().message());
+            Q_EMIT captureFailed(m_lastStatus);
+            return;
+        }
+
+        QDBusConnection::sessionBus().connect(
+            QString::fromLatin1(kPortalService),
+            reply.value().path(),
+            QString::fromLatin1(kRequestIface),
+            QStringLiteral("Response"),
+            this,
+            SLOT(onScreenCastResponse(uint,QVariantMap)));
+    });
+}
+
+void CaptureCoordinator::startPortalScreenCast()
+{
+    const QString token = QStringLiteral("cp_start_%1")
+                              .arg(QUuid::createUuid().toString(QUuid::Id128));
+
+    QVariantMap options;
+    options.insert(QStringLiteral("handle_token"), token);
+
+    auto msg = QDBusMessage::createMethodCall(
+        QString::fromLatin1(kPortalService),
+        QString::fromLatin1(kPortalPath),
+        QString::fromLatin1(kScreenCastIface),
+        QStringLiteral("Start"));
+    msg << QDBusObjectPath(m_portalSessionHandle) << QString() << options;
+
+    auto *watcher = new QDBusPendingCallWatcher(
+        QDBusConnection::sessionBus().asyncCall(msg), this);
+    connect(watcher, &QDBusPendingCallWatcher::finished, this, [this](QDBusPendingCallWatcher *w) {
+        w->deleteLater();
+        QDBusPendingReply<QDBusObjectPath> reply = *w;
+        if (!reply.isValid()) {
+            m_portalStep = PortalStep::Idle;
+            m_recording = false;
+            Q_EMIT recordingChanged(false);
+            closePortalSession();
             setStatus(reply.error().message());
             Q_EMIT captureFailed(m_lastStatus);
             return;
@@ -479,31 +645,280 @@ void CaptureCoordinator::requestPortalScreenCastSession()
 void CaptureCoordinator::onScreenCastResponse(uint response, const QVariantMap &results)
 {
     if (response != 0) {
+        m_portalStep = PortalStep::Idle;
+        m_stopRequested = false;
+        m_recording = false;
+        Q_EMIT recordingChanged(false);
+        closePortalSession();
         setStatus(QStringLiteral("ScreenCast portal cancelled"));
+        Q_EMIT captureFailed(m_lastStatus);
         return;
     }
 
-    if (results.contains(QStringLiteral("session_handle"))) {
+    if (m_stopRequested) {
+        m_portalStep = PortalStep::Idle;
+        m_stopRequested = false;
+        m_recording = false;
+        Q_EMIT recordingChanged(false);
+        closePortalSession();
+        return;
+    }
+
+    if (m_portalStep == PortalStep::CreateSession) {
         m_portalSessionHandle = results.value(QStringLiteral("session_handle")).toString();
-        setStatus(QStringLiteral("ScreenCast session ready (SelectSources/Start scaffolded)"));
+        if (m_portalSessionHandle.isEmpty()) {
+            m_portalStep = PortalStep::Idle;
+            m_recording = false;
+            Q_EMIT recordingChanged(false);
+            Q_EMIT captureFailed(QStringLiteral("Empty ScreenCast session handle"));
+            return;
+        }
+        m_portalStep = PortalStep::SelectSources;
+        selectPortalSources();
+        return;
+    }
+
+    if (m_portalStep == PortalStep::SelectSources) {
+        m_portalStep = PortalStep::Start;
+        startPortalScreenCast();
+        return;
+    }
+
+    if (m_portalStep == PortalStep::Start) {
+        m_portalStep = PortalStep::Idle;
+
+        quint32 nodeId = 0;
+        QPoint streamPos(0, 0);
+        QSize streamSize;
+
+        if (results.contains(QStringLiteral("streams"))) {
+            const QDBusArgument streamsArg = results.value(QStringLiteral("streams")).value<QDBusArgument>();
+            streamsArg.beginArray();
+            if (!streamsArg.atEnd()) {
+                QVariantMap props;
+                streamsArg.beginStructure();
+                streamsArg >> nodeId >> props;
+                streamsArg.endStructure();
+
+                if (props.contains(QStringLiteral("position"))) {
+                    const QDBusArgument posArg = props.value(QStringLiteral("position")).value<QDBusArgument>();
+                    qint32 px = 0;
+                    qint32 py = 0;
+                    posArg.beginStructure();
+                    posArg >> px >> py;
+                    posArg.endStructure();
+                    streamPos = QPoint(px, py);
+                }
+                if (props.contains(QStringLiteral("size"))) {
+                    const QDBusArgument sizeArg = props.value(QStringLiteral("size")).value<QDBusArgument>();
+                    qint32 sw = 0;
+                    qint32 sh = 0;
+                    sizeArg.beginStructure();
+                    sizeArg >> sw >> sh;
+                    sizeArg.endStructure();
+                    streamSize = QSize(sw, sh);
+                }
+            }
+            streamsArg.endArray();
+        }
+
+        if (nodeId == 0) {
+            m_recording = false;
+            Q_EMIT recordingChanged(false);
+            closePortalSession();
+            setStatus(QStringLiteral("ScreenCast returned no active stream"));
+            Q_EMIT captureFailed(m_lastStatus);
+            return;
+        }
+
+        openPipeWireRemoteAndBegin(nodeId, streamPos, streamSize);
     }
 }
 
-void CaptureCoordinator::beginPipeWireRecording(uint pipewireFd, quint64 objectSerial)
+void CaptureCoordinator::openPipeWireRemoteAndBegin(
+    quint32 nodeId,
+    const QPoint &streamPos,
+    const QSize &streamSize)
 {
-    if (!m_recorder) {
+    auto msg = QDBusMessage::createMethodCall(
+        QString::fromLatin1(kPortalService),
+        QString::fromLatin1(kPortalPath),
+        QString::fromLatin1(kScreenCastIface),
+        QStringLiteral("OpenPipeWireRemote"));
+    msg << QDBusObjectPath(m_portalSessionHandle) << QVariantMap{};
+
+    auto *watcher = new QDBusPendingCallWatcher(
+        QDBusConnection::sessionBus().asyncCall(msg), this);
+    connect(watcher, &QDBusPendingCallWatcher::finished,
+            this, [this, nodeId, streamPos, streamSize](QDBusPendingCallWatcher *w) {
+        w->deleteLater();
+        QDBusPendingReply<QDBusUnixFileDescriptor> reply = *w;
+        if (!reply.isValid() || !reply.value().isValid()) {
+            m_recording = false;
+            Q_EMIT recordingChanged(false);
+            closePortalSession();
+            const QString err = reply.isValid()
+                ? QStringLiteral("Invalid PipeWire file descriptor")
+                : reply.error().message();
+            setStatus(err);
+            Q_EMIT captureFailed(err);
+            return;
+        }
+
+        const int dupFd = ::fcntl(reply.value().fileDescriptor(), F_DUPFD_CLOEXEC, 0);
+        if (dupFd < 0) {
+            m_recording = false;
+            Q_EMIT recordingChanged(false);
+            closePortalSession();
+            setStatus(QStringLiteral("Failed to duplicate PipeWire FD"));
+            Q_EMIT captureFailed(m_lastStatus);
+            return;
+        }
+
+        if (m_stopRequested) {
+            ::close(dupFd);
+            m_stopRequested = false;
+            m_recording = false;
+            Q_EMIT recordingChanged(false);
+            closePortalSession();
+            return;
+        }
+
+        beginPipeWireRecording(static_cast<uint>(dupFd), nodeId, streamPos, streamSize);
+    });
+}
+
+void CaptureCoordinator::closePortalSession()
+{
+    if (m_portalSessionHandle.isEmpty()) {
         return;
     }
 
-    if (m_pendingCropRect.isValid() && !m_pendingCropRect.isEmpty()) {
-        m_recorder->setRequestedSize(m_pendingCropRect.size());
+    auto msg = QDBusMessage::createMethodCall(
+        QString::fromLatin1(kPortalService),
+        m_portalSessionHandle,
+        QString::fromLatin1(kSessionIface),
+        QStringLiteral("Close"));
+    QDBusConnection::sessionBus().asyncCall(msg);
+    m_portalSessionHandle.clear();
+}
+
+void CaptureCoordinator::beginPipeWireRecording(
+    uint pipewireFd,
+    quint32 nodeId,
+    const QPoint &streamPos,
+    const QSize &streamSize)
+{
+    if (!m_recorder) {
+        ::close(static_cast<int>(pipewireFd));
+        return;
     }
 
+    m_streamPos = streamPos;
+    m_streamSize = streamSize;
+
     m_recorder->setFd(pipewireFd);
-    // KPipeWire 6.4+ prefers PipeWire objectSerial over deprecated setNodeId().
-    m_recorder->setObjectSerial(objectSerial);
+    QT_WARNING_PUSH
+    QT_WARNING_DISABLE_DEPRECATED
+    m_recorder->setNodeId(nodeId);
+    QT_WARNING_POP
     m_recorder->start();
-    setStatus(QStringLiteral("Recording active"));
+    setStatus(QStringLiteral("Recording MP4"));
+}
+
+void CaptureCoordinator::finalizeRecordedVideo()
+{
+    if (m_rawRecordingPath.isEmpty() || !QFileInfo::exists(m_rawRecordingPath)) {
+        m_recording = false;
+        Q_EMIT recordingChanged(false);
+        if (!m_activeOutputPath.isEmpty() && QFileInfo::exists(m_activeOutputPath)) {
+            notifyRecordingSaved(m_activeOutputPath);
+            Q_EMIT recordingFinished(m_activeOutputPath);
+        }
+        Q_EMIT captureWorkflowFinished();
+        return;
+    }
+
+    const bool hasCrop = m_pendingCropRect.isValid()
+                         && m_pendingCropRect.width() >= 8
+                         && m_pendingCropRect.height() >= 8;
+
+    int cx = std::max(0, m_pendingCropRect.x() - m_streamPos.x());
+    int cy = std::max(0, m_pendingCropRect.y() - m_streamPos.y());
+    int cw = m_pendingCropRect.width() & ~1;
+    int ch = m_pendingCropRect.height() & ~1;
+
+    if (m_streamSize.isValid() && !m_streamSize.isEmpty()) {
+        cx = std::clamp(cx, 0, std::max(0, m_streamSize.width() - 2));
+        cy = std::clamp(cy, 0, std::max(0, m_streamSize.height() - 2));
+        cw = std::min(cw, (m_streamSize.width() - cx) & ~1);
+        ch = std::min(ch, (m_streamSize.height() - cy) & ~1);
+    }
+
+    const QString ffmpegBin = QStandardPaths::findExecutable(QStringLiteral("ffmpeg"));
+    if (!hasCrop || cw < 8 || ch < 8 || ffmpegBin.isEmpty()) {
+        QFile::remove(m_activeOutputPath);
+        QFile::rename(m_rawRecordingPath, m_activeOutputPath);
+        m_rawRecordingPath.clear();
+        m_recording = false;
+        Q_EMIT recordingChanged(false);
+        notifyRecordingSaved(m_activeOutputPath);
+        Q_EMIT recordingFinished(m_activeOutputPath);
+        Q_EMIT captureWorkflowFinished();
+        return;
+    }
+
+    m_croppingInProgress = true;
+    const QString filter = QStringLiteral(
+        "crop='trunc(min(iw-%1,%2)/2)*2':'trunc(min(ih-%3,%4)/2)*2':'min(%1,iw-2)':'min(%3,ih-2)'")
+        .arg(cx)
+        .arg(cw)
+        .arg(cy)
+        .arg(ch);
+
+    auto *proc = new QProcess(this);
+    connect(proc, &QProcess::finished, this, [this, proc](int exitCode, QProcess::ExitStatus status) {
+        proc->deleteLater();
+        m_croppingInProgress = false;
+
+        if (status != QProcess::NormalExit || exitCode != 0 || !QFileInfo::exists(m_activeOutputPath)) {
+            QFile::remove(m_activeOutputPath);
+            QFile::rename(m_rawRecordingPath, m_activeOutputPath);
+        } else {
+            QFile::remove(m_rawRecordingPath);
+        }
+        m_rawRecordingPath.clear();
+
+        m_recording = false;
+        Q_EMIT recordingChanged(false);
+        notifyRecordingSaved(m_activeOutputPath);
+        Q_EMIT recordingFinished(m_activeOutputPath);
+        Q_EMIT captureWorkflowFinished();
+    });
+
+    proc->start(ffmpegBin, {
+        QStringLiteral("-y"),
+        QStringLiteral("-i"), m_rawRecordingPath,
+        QStringLiteral("-vf"), filter,
+        QStringLiteral("-c:v"), QStringLiteral("libx264"),
+        QStringLiteral("-preset"), QStringLiteral("veryfast"),
+        QStringLiteral("-crf"), QStringLiteral("18"),
+        QStringLiteral("-pix_fmt"), QStringLiteral("yuv420p"),
+        QStringLiteral("-movflags"), QStringLiteral("+faststart"),
+        m_activeOutputPath,
+    });
+}
+
+void CaptureCoordinator::notifyRecordingSaved(const QString &outputPath)
+{
+    setStatus(QStringLiteral("Recording saved"));
+    const QString msg = QStringLiteral("Recording saved to %1").arg(outputPath);
+    QProcess::startDetached(QStringLiteral("notify-send"), {
+        QStringLiteral("-a"), QStringLiteral("CatchyPills"),
+        QStringLiteral("-i"), QStringLiteral("video-x-generic"),
+        QStringLiteral("CatchyPills"),
+        msg,
+    });
 }
 
 void CaptureCoordinator::setStatus(const QString &status)
@@ -528,6 +943,18 @@ QString CaptureCoordinator::buildOutputPath(const QString &extension) const
     QDir().mkpath(baseDir);
     const QString stamp = QDateTime::currentDateTime().toString(QStringLiteral("yyyyMMdd_HHmmss"));
     return QStringLiteral("%1/CatchyPills_%2.%3").arg(baseDir, stamp, extension);
+}
+
+QString CaptureCoordinator::buildVideoOutputPath(const QString &prefix) const
+{
+    QString baseDir = QStandardPaths::writableLocation(QStandardPaths::MoviesLocation);
+    if (baseDir.isEmpty()) {
+        baseDir = QDir::homePath() + QStringLiteral("/Videos");
+    }
+    const QString videosDir = baseDir + QStringLiteral("/CatchyPills");
+    QDir().mkpath(videosDir);
+    const QString stamp = QDateTime::currentDateTime().toString(QStringLiteral("yyyyMMdd_HHmmss"));
+    return QStringLiteral("%1/%2_%3.mp4").arg(videosDir, prefix, stamp);
 }
 
 } // namespace catchypills::capture

@@ -66,6 +66,18 @@ public:
     void attachAsFullscreenOverlay(QScreen *preferredScreen = nullptr);
 
     /**
+     * During active screen recording, lowers the CaptureOverlay to LayerTop, releases
+     * keyboard exclusivity, and constrains Wayland pointer input solely to toolbarRect.
+     */
+    Q_INVOKABLE void setOverlayRecordingPassThrough(const QRect &toolbarRect, int cornerRadius = 16);
+
+    /**
+     * Restores the fullscreen CaptureOverlay to LayerOverlay with exclusive keyboard
+     * interactivity and full-surface input before displaying the region selector.
+     */
+    Q_INVOKABLE void restoreFullscreenOverlay();
+
+    /**
      * Dynamically constrains pointer hit-testing to only the visible pill area
      * inside the fixed transparent canvas, or passes all clicks through.
      */

@@ -297,7 +297,7 @@ Item {
                                 font.pixelSize: 12
                                 text: captureCoordinator.recording
                                       ? "KPipeWire stream is actively capturing your selected desktop region."
-                                      : "Drag across any area of your display to annotate, Save Image, Copy Image, or Record GIF / MP4 directly."
+                                      : "Drag across any area of your display to hand off a Screenshot to OmniShot or Record MP4."
                             }
 
                             Item {

@@ -244,6 +244,59 @@ void LayerSurfaceController::attachAsFullscreenOverlay(QScreen *preferredScreen)
     layerWindow->setScope(QStringLiteral("catchypills-capture-overlay"));
 }
 
+void LayerSurfaceController::setOverlayRecordingPassThrough(const QRect &toolbarRect, int cornerRadius)
+{
+    if (!m_window) {
+        return;
+    }
+
+    if (auto *layerWindow = LayerShellQt::Window::get(m_window)) {
+        layerWindow->setLayer(LayerShellQt::Window::LayerTop);
+        layerWindow->setKeyboardInteractivity(LayerShellQt::Window::KeyboardInteractivityNone);
+        layerWindow->setActivateOnShow(false);
+    }
+
+    m_clickThrough = false;
+    m_maskBypassed = false;
+    applyBlurBehind(QRegion());
+
+    if (toolbarRect.isValid() && !toolbarRect.isEmpty()) {
+        QPainterPath path;
+        path.addRoundedRect(QRectF(toolbarRect), cornerRadius, cornerRadius);
+        m_window->setFlag(Qt::WindowTransparentForInput, false);
+        m_window->setMask(QRegion(path.toFillPolygon().toPolygon()));
+    } else {
+        m_window->setFlag(Qt::WindowTransparentForInput, true);
+    }
+
+    if (m_window->isVisible()) {
+        m_window->requestUpdate();
+    }
+}
+
+void LayerSurfaceController::restoreFullscreenOverlay()
+{
+    if (!m_window) {
+        return;
+    }
+
+    if (auto *layerWindow = LayerShellQt::Window::get(m_window)) {
+        layerWindow->setLayer(LayerShellQt::Window::LayerOverlay);
+        layerWindow->setKeyboardInteractivity(LayerShellQt::Window::KeyboardInteractivityExclusive);
+        layerWindow->setActivateOnShow(true);
+    }
+
+    m_clickThrough = false;
+    m_maskBypassed = false;
+    applyBlurBehind(QRegion());
+    m_window->setFlag(Qt::WindowTransparentForInput, false);
+    m_window->setMask(QRegion());
+
+    if (m_window->isVisible()) {
+        m_window->requestUpdate();
+    }
+}
+
 void LayerSurfaceController::updateInputRegion(const QRect &pillRect, int cornerRadius)
 {
     if (!m_window) {

@@ -75,6 +75,7 @@ bool Application::initialize()
     m_fileShelfModel = new shelf::FileShelfModel(this);
     m_captureCoordinator = new capture::CaptureCoordinator(m_imageProvider, this);
     m_islandLayer = new wayland::LayerSurfaceController(nullptr, this);
+    m_overlayLayer = new wayland::LayerSurfaceController(nullptr, this);
     m_engine = new QQmlApplicationEngine(this);
 
     m_fileShelfModel->setRetentionHours(m_configManager->shelfRetentionHours());
@@ -110,6 +111,7 @@ bool Application::initialize()
     m_engine->rootContext()->setContextProperty(QStringLiteral("fileShelfModel"), m_fileShelfModel);
     m_engine->rootContext()->setContextProperty(QStringLiteral("captureCoordinator"), m_captureCoordinator);
     m_engine->rootContext()->setContextProperty(QStringLiteral("layerController"), m_islandLayer);
+    m_engine->rootContext()->setContextProperty(QStringLiteral("overlayLayerController"), m_overlayLayer);
 
     connect(m_engine,
             &QQmlApplicationEngine::objectCreationFailed,
@@ -137,12 +139,13 @@ bool Application::initialize()
     m_engine->loadFromModule("CatchyPills", "CaptureOverlay");
     if (m_engine->rootObjects().size() >= 2) {
         if (auto *overlayWindow = qobject_cast<QQuickWindow *>(m_engine->rootObjects().at(1))) {
-            m_overlayLayer = new wayland::LayerSurfaceController(overlayWindow, overlayWindow);
+            m_overlayLayer->setWindow(overlayWindow);
             m_overlayLayer->attachAsFullscreenOverlay();
             connect(m_captureCoordinator,
                     &capture::CaptureCoordinator::regionOverlayRequested,
                     overlayWindow,
-                    [overlayWindow]() {
+                    [this, overlayWindow]() {
+                        m_overlayLayer->restoreFullscreenOverlay();
                         overlayWindow->show();
                         overlayWindow->raise();
                         overlayWindow->requestActivate();

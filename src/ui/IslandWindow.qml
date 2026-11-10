@@ -32,12 +32,22 @@ Window {
         }
     }
 
-    // Collapse the island cleanly when OmniShot CaptureOverlay opens.
+    // Collapse the island cleanly when OmniShot CaptureOverlay opens or workflow completes.
     Connections {
         target: captureCoordinator
         function onRegionOverlayRequested() {
             dragExitLock.stop()
             hoverExpandDelay.stop()
+            root.dragActive = false
+            pillContainer.state = "collapsed"
+            if (root.hasLayer) {
+                layerController.setKeyboardInteractive(false)
+            }
+        }
+        function onCaptureWorkflowFinished() {
+            dragExitLock.stop()
+            hoverExpandDelay.stop()
+            collapseDelay.stop()
             root.dragActive = false
             pillContainer.state = "collapsed"
             if (root.hasLayer) {

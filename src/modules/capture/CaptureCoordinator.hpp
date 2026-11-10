@@ -2,6 +2,7 @@
 
 #include <QImage>
 #include <QObject>
+#include <QPoint>
 #include <QQuickImageProvider>
 #include <QRect>
 #include <QSize>
@@ -35,8 +36,8 @@ private:
 /**
  * Orchestrates Wayland screen capture on KDE Plasma 6:
  *  - Instant still & region capture via restricted org.kde.KWin.ScreenShot2 D-Bus pipe
- *  - Composited annotations (arrows, rectangles, blur/pixelate redaction)
- *  - Portal ScreenCast + KPipeWire (FFmpeg/VA-API/GIF) recording pipeline
+ *  - Composited annotations + OmniShot editor handoff (`omnishot --edit-existing`)
+ *  - Full XDG ScreenCast Portal + KPipeWire MP4 region recording & desktop notification
  */
 class CaptureCoordinator final : public QObject
 {
@@ -73,9 +74,19 @@ public:
     Q_INVOKABLE void prepareRegionCapture(bool includeCursor = false);
 
     /**
+     * Captures the selected (x, y, width, height) region with any annotations
+     * and opens it directly in the external OmniShot application.
+     */
+    Q_INVOKABLE void captureToOmniShot(int x,
+                                         int y,
+                                         int width,
+                                         int height,
+                                         const QVariantList &annotations,
+                                         bool includeCursor = false);
+
+    /**
      * Executes org.kde.KWin.ScreenShot2::CaptureArea for the finalized crop
-     * coordinates, composites QML annotations at native resolution, saves PNG,
-     * and copies to the Wayland clipboard.
+     * coordinates, composites QML annotations at native resolution, and saves/copies PNG.
      */
     Q_INVOKABLE void finalizeRegionCapture(int x,
                                              int y,
@@ -86,12 +97,14 @@ public:
                                              bool saveToFile = true,
                                              bool copyToClipboard = true);
 
-    Q_INVOKABLE void startRecording(RecordingPreset preset = RecordingPreset::Gif,
+    Q_INVOKABLE void startRegionRecording(int x, int y, int width, int height);
+    Q_INVOKABLE void startRecording(RecordingPreset preset = RecordingPreset::Mp4H264,
                                       const QRect &cropRect = QRect());
     Q_INVOKABLE void stopRecording();
 
 Q_SIGNALS:
     void regionOverlayRequested();
+    void captureWorkflowFinished();
     void screenshotCaptured(const QString &savedPath, const QSize &dimensions);
     void captureFailed(const QString &reason);
     void recordingChanged(bool recording);
@@ -108,32 +121,58 @@ private:
         OverlayBackdrop,
     };
 
+    enum class PortalStep {
+        Idle,
+        CreateSession,
+        SelectSources,
+        Start,
+    };
+
     void invokeScreenShot2(const QString &methodName,
                            const QVariantList &leadingArgs,
                            bool includeCursor,
                            ShotPurpose purpose);
     void handleCapturedImage(QImage image);
     void applyAnnotations(QImage &image, const QRect &logicalCrop, const QVariantList &annotations) const;
+
     void requestPortalScreenCastSession();
-    void beginPipeWireRecording(uint pipewireFd, quint64 objectSerial);
+    void selectPortalSources();
+    void startPortalScreenCast();
+    void openPipeWireRemoteAndBegin(quint32 nodeId, const QPoint &streamPos, const QSize &streamSize);
+    void closePortalSession();
+    void beginPipeWireRecording(uint pipewireFd,
+                                quint32 nodeId,
+                                const QPoint &streamPos,
+                                const QSize &streamSize);
+    void finalizeRecordedVideo();
+    void notifyRecordingSaved(const QString &outputPath);
+
     void setStatus(const QString &status);
     QString buildOutputPath(const QString &extension) const;
+    QString buildVideoOutputPath(const QString &prefix = QStringLiteral("screencast")) const;
 
     CaptureImageProvider *m_imageProvider{nullptr};
     PipeWireRecord *m_recorder{nullptr};
-    RecordingPreset m_activePreset{RecordingPreset::Gif};
+    RecordingPreset m_activePreset{RecordingPreset::Mp4H264};
+    PortalStep m_portalStep{PortalStep::Idle};
     QRect m_pendingCropRect;
     QRect m_pendingLogicalCrop;
+    QPoint m_streamPos{0, 0};
+    QSize m_streamSize;
     QVariantList m_pendingAnnotations;
     QString m_portalSessionHandle;
     QString m_activeOutputPath;
+    QString m_rawRecordingPath;
     QString m_outputDirectory;
     QString m_lastStatus;
     int m_backdropRevision{0};
     bool m_recording{false};
+    bool m_stopRequested{false};
+    bool m_croppingInProgress{false};
     bool m_autoCopyEnabled{true};
     bool m_pendingSaveFile{true};
     bool m_pendingCopyClipboard{true};
+    bool m_pendingOmniShotHandoff{false};
 };
 
 } // namespace catchypills::capture
