@@ -20,6 +20,10 @@ namespace catchypills::core {
 class DaemonClient;
 }
 
+namespace catchypills::itsm {
+class ITSMController;
+}
+
 namespace catchypills::media {
 class MprisController;
 }
@@ -93,6 +97,7 @@ private:
     ConfigManager *m_configManager{nullptr};
     QQmlApplicationEngine *m_engine{nullptr};
     core::DaemonClient *m_daemonClient{nullptr};
+    itsm::ITSMController *m_itsmController{nullptr};
     media::MprisController *m_mprisController{nullptr};
     notes::NotesModel *m_notesModel{nullptr};
     shelf::FileShelfModel *m_fileShelfModel{nullptr};

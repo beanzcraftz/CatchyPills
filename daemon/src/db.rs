@@ -136,3 +136,27 @@ pub fn delete_note(conn: &Connection, note_id: i64) -> bool {
         .map(|n| n > 0)
         .unwrap_or(false)
 }
+
+/// Delete clipboard entries older than 24 hours and unlink stale image payloads on disk.
+/// `clipboard_items.created_at` is stored in Unix epoch milliseconds.
+pub fn prune_expired_clipboard(conn: &Connection) -> usize {
+    let mut expired_images = Vec::new();
+    if let Ok(mut stmt) = conn.prepare(
+        "SELECT image_path FROM clipboard_items
+         WHERE image_path != '' AND created_at < ((unixepoch('now', '-1 day')) * 1000)",
+    ) {
+        if let Ok(rows) = stmt.query_map([], |row| row.get::<_, String>(0)) {
+            expired_images.extend(rows.flatten());
+        }
+    }
+
+    for path in expired_images {
+        let _ = std::fs::remove_file(path);
+    }
+
+    conn.execute(
+        "DELETE FROM clipboard_items WHERE created_at < ((unixepoch('now', '-1 day')) * 1000)",
+        [],
+    )
+    .unwrap_or(0)
+}

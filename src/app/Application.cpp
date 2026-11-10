@@ -3,6 +3,7 @@
 #include "ConfigManager.hpp"
 #include "core/DaemonClient.hpp"
 #include "modules/capture/CaptureCoordinator.hpp"
+#include "modules/itsm/ITSMController.hpp"
 #include "modules/media/MprisController.hpp"
 #include "modules/notes/NotesModel.hpp"
 #include "modules/shelf/FileShelfModel.hpp"
@@ -72,6 +73,7 @@ bool Application::initialize()
     m_configManager = new ConfigManager(this);
     m_imageProvider = new capture::CaptureImageProvider();
     m_daemonClient = new core::DaemonClient(this);
+    m_itsmController = new itsm::ITSMController(this);
     m_mprisController = new media::MprisController(this);
     m_notesModel = new notes::NotesModel(this);
     m_fileShelfModel = new shelf::FileShelfModel(this);
@@ -96,6 +98,21 @@ bool Application::initialize()
             m_captureCoordinator, &capture::CaptureCoordinator::setAutoCopyEnabled);
     connect(m_configManager, &ConfigManager::clipboardPausedChanged,
             m_daemonClient, &core::DaemonClient::setClipboardPaused);
+    connect(m_configManager, &ConfigManager::enableITSMChanged,
+            this, [this](bool enabled) {
+                if (m_daemonClient) {
+                    m_daemonClient->setItsmEnabled(enabled);
+                }
+                if (!enabled && m_itsmController) {
+                    m_itsmController->clearReady();
+                }
+            });
+    connect(m_daemonClient, &core::DaemonClient::htmlClipboardReady,
+            this, [this](const QString &htmlText) {
+                if (m_configManager && m_configManager->enableITSM() && m_itsmController) {
+                    m_itsmController->setHtmlReady(htmlText);
+                }
+            });
     connect(m_configManager, &ConfigManager::weatherCoordinatesChanged,
             m_weatherController, &weather::WeatherController::setCoordinates);
 
@@ -114,6 +131,7 @@ bool Application::initialize()
     m_engine->rootContext()->setContextProperty(QStringLiteral("appController"), this);
     m_engine->rootContext()->setContextProperty(QStringLiteral("configManager"), m_configManager);
     m_engine->rootContext()->setContextProperty(QStringLiteral("daemonClient"), m_daemonClient);
+    m_engine->rootContext()->setContextProperty(QStringLiteral("itsmController"), m_itsmController);
     m_engine->rootContext()->setContextProperty(QStringLiteral("mprisController"), m_mprisController);
     m_engine->rootContext()->setContextProperty(QStringLiteral("notesModel"), m_notesModel);
     m_engine->rootContext()->setContextProperty(QStringLiteral("fileShelfModel"), m_fileShelfModel);
@@ -344,6 +362,7 @@ void Application::syncDaemonPreferences()
 {
     if (m_daemonClient && m_configManager) {
         m_daemonClient->setClipboardPaused(m_configManager->clipboardPaused());
+        m_daemonClient->setItsmEnabled(m_configManager->enableITSM());
         m_daemonClient->refreshClips();
     }
 }

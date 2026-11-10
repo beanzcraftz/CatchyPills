@@ -48,6 +48,8 @@ qt_add_executable(catchypills
     src/core/DaemonClient.cpp
     src/modules/capture/CaptureCoordinator.hpp
     src/modules/capture/CaptureCoordinator.cpp
+    src/modules/itsm/ITSMController.hpp
+    src/modules/itsm/ITSMController.cpp
     src/modules/media/MprisController.hpp
     src/modules/media/MprisController.cpp
     src/modules/notes/NotesModel.hpp
@@ -71,6 +73,7 @@ qt_add_qml_module(catchypills
         src/ui/components/ExpandedDashboard.qml
         src/ui/components/ClipboardView.qml
         src/ui/components/FileShelfView.qml
+        src/ui/components/ITSMView.qml
         src/ui/components/MediaView.qml
         src/ui/components/NotesView.qml
         src/ui/components/SearchPaletteView.qml

@@ -21,9 +21,12 @@ notify = "8"
 nucleo = "0.5"
 nucleo-matcher = "0.3"
 
+# Environment file support for bespoke personal integrations
+dotenvy = "0.15"
+
 # Local Session D-Bus IPC with the C++20/Qt6 CatchyPills frontend.
 zbus = { version = "5", default-features = false, features = ["tokio"] }
-tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "signal"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "signal", "time"] }
 serde = { version = "1", features = ["derive"] }
 
 [profile.release]

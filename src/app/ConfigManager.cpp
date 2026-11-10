@@ -23,6 +23,8 @@ ConfigManager::ConfigManager(QObject *parent)
                      + QStringLiteral("/CatchyPills/CatchyPills.conf"),
                  QSettings::IniFormat)
 {
+    loadDotEnv();
+
     m_targetMonitor = m_settings.value(QStringLiteral("Display/targetMonitor")).toString();
     if (m_targetMonitor.isEmpty()) {
         m_targetMonitor = detectDefaultUltrawideMonitor();
@@ -60,6 +62,19 @@ ConfigManager::ConfigManager(QObject *parent)
         m_settings.value(QStringLiteral("Weather/latitude"), -27.82).toDouble(), -90.0, 90.0);
     m_weatherLongitude = std::clamp(
         m_settings.value(QStringLiteral("Weather/longitude"), 152.96).toDouble(), -180.0, 180.0);
+
+    m_enableITSM = loadBoolFeatureFlag(
+        QStringLiteral("Integrations/enableITSM"),
+        {QStringLiteral("ENABLE_ITSM"), QStringLiteral("CATCHYPILLS_ENABLE_ITSM")});
+    m_enableIoT = loadBoolFeatureFlag(
+        QStringLiteral("Integrations/enableIoT"),
+        {QStringLiteral("ENABLE_IOT"), QStringLiteral("CATCHYPILLS_ENABLE_IOT")});
+    m_enableSolar = loadBoolFeatureFlag(
+        QStringLiteral("Integrations/enableSolar"),
+        {QStringLiteral("ENABLE_SOLAR"), QStringLiteral("CATCHYPILLS_ENABLE_SOLAR")});
+    m_enableWorklog = loadBoolFeatureFlag(
+        QStringLiteral("Integrations/enableWorklog"),
+        {QStringLiteral("ENABLE_WORKLOG"), QStringLiteral("CATCHYPILLS_ENABLE_WORKLOG")});
 
     connect(qGuiApp, &QGuiApplication::screenAdded, this, &ConfigManager::availableMonitorsChanged);
     connect(qGuiApp, &QGuiApplication::screenRemoved, this, &ConfigManager::availableMonitorsChanged);
@@ -272,6 +287,117 @@ void ConfigManager::setWeatherLongitude(double longitude)
     m_settings.sync();
     Q_EMIT weatherLongitudeChanged(m_weatherLongitude);
     Q_EMIT weatherCoordinatesChanged(m_weatherLatitude, m_weatherLongitude);
+}
+
+void ConfigManager::setEnableITSM(bool enabled)
+{
+    if (m_enableITSM == enabled) {
+        return;
+    }
+    m_enableITSM = enabled;
+    m_settings.setValue(QStringLiteral("Integrations/enableITSM"), m_enableITSM);
+    m_settings.sync();
+    Q_EMIT enableITSMChanged(m_enableITSM);
+}
+
+void ConfigManager::setEnableIoT(bool enabled)
+{
+    if (m_enableIoT == enabled) {
+        return;
+    }
+    m_enableIoT = enabled;
+    m_settings.setValue(QStringLiteral("Integrations/enableIoT"), m_enableIoT);
+    m_settings.sync();
+    Q_EMIT enableIoTChanged(m_enableIoT);
+}
+
+void ConfigManager::setEnableSolar(bool enabled)
+{
+    if (m_enableSolar == enabled) {
+        return;
+    }
+    m_enableSolar = enabled;
+    m_settings.setValue(QStringLiteral("Integrations/enableSolar"), m_enableSolar);
+    m_settings.sync();
+    Q_EMIT enableSolarChanged(m_enableSolar);
+}
+
+void ConfigManager::setEnableWorklog(bool enabled)
+{
+    if (m_enableWorklog == enabled) {
+        return;
+    }
+    m_enableWorklog = enabled;
+    m_settings.setValue(QStringLiteral("Integrations/enableWorklog"), m_enableWorklog);
+    m_settings.sync();
+    Q_EMIT enableWorklogChanged(m_enableWorklog);
+}
+
+QString ConfigManager::envValue(const QString &key, const QString &fallback) const
+{
+    if (qEnvironmentVariableIsSet(key.toUtf8().constData())) {
+        return qEnvironmentVariable(key.toUtf8().constData());
+    }
+    return m_envVars.value(key, fallback);
+}
+
+void ConfigManager::loadDotEnv()
+{
+    const QString configRoot = QStandardPaths::writableLocation(QStandardPaths::ConfigLocation);
+    const QStringList candidates = {
+        configRoot + QStringLiteral("/catchypills/.env"),
+        configRoot + QStringLiteral("/CatchyPills/.env"),
+        QDir::currentPath() + QStringLiteral("/.env"),
+    };
+
+    for (const QString &path : candidates) {
+        QFile file(path);
+        if (!file.exists() || !file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+            continue;
+        }
+        QTextStream in(&file);
+        while (!in.atEnd()) {
+            QString line = in.readLine().trimmed();
+            if (line.isEmpty() || line.startsWith(QLatin1Char('#'))) {
+                continue;
+            }
+            if (line.startsWith(QStringLiteral("export "))) {
+                line = line.mid(7).trimmed();
+            }
+            const int eqIdx = line.indexOf(QLatin1Char('='));
+            if (eqIdx <= 0) {
+                continue;
+            }
+            const QString key = line.left(eqIdx).trimmed();
+            QString val = line.mid(eqIdx + 1).trimmed();
+            if (val.size() >= 2
+                && ((val.startsWith(QLatin1Char('"')) && val.endsWith(QLatin1Char('"')))
+                    || (val.startsWith(QLatin1Char('\'')) && val.endsWith(QLatin1Char('\''))))) {
+                val = val.mid(1, val.size() - 2);
+            }
+            if (!key.isEmpty()) {
+                m_envVars.insert(key, val);
+                if (!qEnvironmentVariableIsSet(key.toUtf8().constData())) {
+                    qputenv(key.toUtf8().constData(), val.toUtf8());
+                }
+            }
+        }
+    }
+}
+
+bool ConfigManager::loadBoolFeatureFlag(const QString &settingsKey, const QStringList &envKeys) const
+{
+    if (m_settings.contains(settingsKey)) {
+        return m_settings.value(settingsKey, false).toBool();
+    }
+    for (const QString &envKey : envKeys) {
+        const QString raw = envValue(envKey).trimmed().toLower();
+        if (raw == QStringLiteral("1") || raw == QStringLiteral("true")
+            || raw == QStringLiteral("yes") || raw == QStringLiteral("on")) {
+            return true;
+        }
+    }
+    return false;
 }
 
 bool ConfigManager::startWithSystem() const

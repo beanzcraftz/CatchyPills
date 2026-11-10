@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QHash>
 #include <QObject>
 #include <QSettings>
 #include <QString>
@@ -39,6 +40,12 @@ class ConfigManager final : public QObject
     // Weather Location
     Q_PROPERTY(double weatherLatitude READ weatherLatitude WRITE setWeatherLatitude NOTIFY weatherLatitudeChanged)
     Q_PROPERTY(double weatherLongitude READ weatherLongitude WRITE setWeatherLongitude NOTIFY weatherLongitudeChanged)
+
+    // Bespoke Integrations (Advanced)
+    Q_PROPERTY(bool enableITSM READ enableITSM WRITE setEnableITSM NOTIFY enableITSMChanged)
+    Q_PROPERTY(bool enableIoT READ enableIoT WRITE setEnableIoT NOTIFY enableIoTChanged)
+    Q_PROPERTY(bool enableSolar READ enableSolar WRITE setEnableSolar NOTIFY enableSolarChanged)
+    Q_PROPERTY(bool enableWorklog READ enableWorklog WRITE setEnableWorklog NOTIFY enableWorklogChanged)
 
 public:
     explicit ConfigManager(QObject *parent = nullptr);
@@ -88,6 +95,20 @@ public:
     double weatherLongitude() const noexcept { return m_weatherLongitude; }
     void setWeatherLongitude(double longitude);
 
+    bool enableITSM() const noexcept { return m_enableITSM; }
+    void setEnableITSM(bool enabled);
+
+    bool enableIoT() const noexcept { return m_enableIoT; }
+    void setEnableIoT(bool enabled);
+
+    bool enableSolar() const noexcept { return m_enableSolar; }
+    void setEnableSolar(bool enabled);
+
+    bool enableWorklog() const noexcept { return m_enableWorklog; }
+    void setEnableWorklog(bool enabled);
+
+    Q_INVOKABLE QString envValue(const QString &key, const QString &fallback = QString()) const;
+
 Q_SIGNALS:
     void availableMonitorsChanged();
     void targetMonitorChanged(const QString &monitorName);
@@ -104,14 +125,21 @@ Q_SIGNALS:
     void weatherLatitudeChanged(double latitude);
     void weatherLongitudeChanged(double longitude);
     void weatherCoordinatesChanged(double latitude, double longitude);
+    void enableITSMChanged(bool enabled);
+    void enableIoTChanged(bool enabled);
+    void enableSolarChanged(bool enabled);
+    void enableWorklogChanged(bool enabled);
 
 private:
+    void loadDotEnv();
+    bool loadBoolFeatureFlag(const QString &settingsKey, const QStringList &envKeys) const;
     bool clearCustomPosition();
     QString detectDefaultUltrawideMonitor() const;
     QString userAutostartPath() const;
     QString sourceDesktopEntryPath() const;
 
     QSettings m_settings;
+    QHash<QString, QString> m_envVars;
     QString m_targetMonitor;
     int m_horizontalOffset{0};
     int m_topMargin{0};
@@ -125,6 +153,10 @@ private:
     bool m_autoCopyCapture{true};
     double m_weatherLatitude{-27.82};
     double m_weatherLongitude{152.96};
+    bool m_enableITSM{false};
+    bool m_enableIoT{false};
+    bool m_enableSolar{false};
+    bool m_enableWorklog{false};
 };
 
 } // namespace catchypills::app

@@ -63,6 +63,7 @@ struct DaemonIpc {
     file_index: Arc<RwLock<Vec<IndexedFile>>>,
     indexed_count: Arc<AtomicUsize>,
     clipboard_paused: Arc<AtomicBool>,
+    itsm_enabled: Arc<AtomicBool>,
 }
 
 #[interface(name = "io.hearnelabs.CatchyPillsDaemon1")]
@@ -81,6 +82,15 @@ impl DaemonIpc {
 
     async fn is_clipboard_paused(&self) -> bool {
         self.clipboard_paused.load(Ordering::Relaxed)
+    }
+
+    async fn set_itsm_enabled(&self, enabled: bool) -> bool {
+        self.itsm_enabled.store(enabled, Ordering::Relaxed);
+        enabled
+    }
+
+    async fn is_itsm_enabled(&self) -> bool {
+        self.itsm_enabled.load(Ordering::Relaxed)
     }
 
     async fn get_recent_clips(&self, limit: u32) -> Vec<ClipboardEntryDto> {
@@ -197,6 +207,75 @@ impl DaemonIpc {
         clip_id: i64,
         preview: &str,
     ) -> zbus::Result<()>;
+
+    /// Emitted when ITSM integration is enabled and HTML markup is copied.
+    #[zbus(signal)]
+    async fn html_clipboard_ready(
+        emitter: &SignalEmitter<'_>,
+        html_text: &str,
+    ) -> zbus::Result<()>;
+}
+
+fn load_env_files() {
+    let mut candidates: Vec<PathBuf> = Vec::new();
+    if let Some(config_home) = std::env::var_os("XDG_CONFIG_HOME").filter(|v| !v.is_empty()) {
+        let base = PathBuf::from(config_home);
+        candidates.push(base.join("catchypills/.env"));
+        candidates.push(base.join("CatchyPills/.env"));
+    } else if let Some(home) = std::env::var_os("HOME").filter(|v| !v.is_empty()) {
+        let base = PathBuf::from(home).join(".config");
+        candidates.push(base.join("catchypills/.env"));
+        candidates.push(base.join("CatchyPills/.env"));
+    }
+
+    for path in candidates {
+        if path.is_file() {
+            let _ = dotenvy::from_path(&path);
+        }
+    }
+    let _ = dotenvy::dotenv();
+}
+
+fn env_flag_enabled(keys: &[&str]) -> bool {
+    keys.iter().any(|k| {
+        std::env::var(k)
+            .map(|v| {
+                matches!(
+                    v.trim().to_ascii_lowercase().as_str(),
+                    "1" | "true" | "yes" | "on"
+                )
+            })
+            .unwrap_or(false)
+    })
+}
+
+fn looks_like_html(text: &str) -> bool {
+    let trimmed = text.trim();
+    if trimmed.is_empty() {
+        return false;
+    }
+    let lower = trimmed.to_ascii_lowercase();
+    if lower.contains("<html") || lower.contains("<!doctype html") || lower.contains("<body") {
+        return true;
+    }
+
+    let bytes = lower.as_bytes();
+    let mut i = 0;
+    while i + 3 < bytes.len() {
+        if bytes[i] == b'<' && bytes[i + 1] == b'/' && bytes[i + 2].is_ascii_alphabetic() {
+            if let Some(close_rel) = bytes[i + 2..].iter().position(|&b| b == b'>') {
+                let tag = &lower[i + 2..i + 2 + close_rel];
+                if !tag.is_empty() && tag.bytes().all(|b| b.is_ascii_alphanumeric()) {
+                    let open_prefix = format!("<{tag}");
+                    if lower[..i].contains(&open_prefix) {
+                        return true;
+                    }
+                }
+            }
+        }
+        i += 1;
+    }
+    false
 }
 
 fn hash_bytes(bytes: &[u8]) -> String {
@@ -288,6 +367,7 @@ struct ClipboardWaylandState {
     dbus_conn: zbus::Connection,
     tokio_rt: tokio::runtime::Handle,
     clipboard_paused: Arc<AtomicBool>,
+    itsm_enabled: Arc<AtomicBool>,
 }
 
 impl ClipboardWaylandState {
@@ -345,6 +425,12 @@ impl ClipboardWaylandState {
                     .into_iter()
                     .find(|candidate| mimes.iter().any(|m| m == candidate))
                     .map(|m| ("text", m))
+            })
+            .or_else(|| {
+                mimes
+                    .iter()
+                    .any(|m| m == "text/html")
+                    .then_some(("text", "text/html"))
             });
 
         if let Some((kind, mime)) = chosen {
@@ -352,10 +438,20 @@ impl ClipboardWaylandState {
                 if let Some((clip_id, preview)) =
                     store_clipboard_payload(&self.db, &self.clips_dir, kind, mime, &bytes)
                 {
+                    let html_payload = if kind == "text" && self.itsm_enabled.load(Ordering::Relaxed) {
+                        let text = String::from_utf8_lossy(&bytes).into_owned();
+                        looks_like_html(&text).then_some(text)
+                    } else {
+                        None
+                    };
+
                     let conn = self.dbus_conn.clone();
                     self.tokio_rt.spawn(async move {
                         if let Ok(emitter) = SignalEmitter::new(&conn, DBUS_OBJECT_PATH) {
                             let _ = DaemonIpc::clipboard_updated(&emitter, clip_id, &preview).await;
+                            if let Some(html_text) = html_payload {
+                                let _ = DaemonIpc::html_clipboard_ready(&emitter, &html_text).await;
+                            }
                         }
                     });
                 }
@@ -489,6 +585,7 @@ fn spawn_clipboard_worker(
     dbus_conn: zbus::Connection,
     tokio_rt: tokio::runtime::Handle,
     clipboard_paused: Arc<AtomicBool>,
+    itsm_enabled: Arc<AtomicBool>,
     shutdown: Arc<AtomicBool>,
 ) -> std::thread::JoinHandle<()> {
     std::thread::Builder::new()
@@ -511,6 +608,7 @@ fn spawn_clipboard_worker(
                 dbus_conn,
                 tokio_rt,
                 clipboard_paused,
+                itsm_enabled,
             };
 
             let _registry = wl_conn.display().get_registry(&qh, ());
@@ -651,11 +749,17 @@ fn spawn_file_indexer_worker(
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
+    load_env_files();
+
     let (conn, clips_dir) = db::init_database()?;
     let db = Arc::new(Mutex::new(conn));
     let file_index = Arc::new(RwLock::new(Vec::new()));
     let indexed_count = Arc::new(AtomicUsize::new(0));
     let clipboard_paused = Arc::new(AtomicBool::new(false));
+    let itsm_enabled = Arc::new(AtomicBool::new(env_flag_enabled(&[
+        "ENABLE_ITSM",
+        "CATCHYPILLS_ENABLE_ITSM",
+    ])));
     let shutdown = Arc::new(AtomicBool::new(false));
 
     let ipc = DaemonIpc {
@@ -663,6 +767,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         file_index: Arc::clone(&file_index),
         indexed_count: Arc::clone(&indexed_count),
         clipboard_paused: Arc::clone(&clipboard_paused),
+        itsm_enabled: Arc::clone(&itsm_enabled),
     };
 
     let dbus_conn = connection::Builder::session()?
@@ -673,12 +778,35 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     println!("[catchypillsd] Serving D-Bus at {DBUS_SERVICE_NAME} ({DBUS_OBJECT_PATH})");
 
+    let db_for_cleanup = Arc::clone(&db);
+    let shutdown_for_cleanup = Arc::clone(&shutdown);
+    let cleanup_task = tokio::spawn(async move {
+        let mut ticker = tokio::time::interval(std::time::Duration::from_secs(3600));
+        loop {
+            ticker.tick().await;
+            if shutdown_for_cleanup.load(Ordering::Relaxed) {
+                break;
+            }
+            let db_ref = Arc::clone(&db_for_cleanup);
+            let _ = tokio::task::spawn_blocking(move || {
+                if let Ok(conn) = db_ref.lock() {
+                    let deleted = db::prune_expired_clipboard(&conn);
+                    if deleted > 0 {
+                        println!("[catchypillsd] Pruned {deleted} clipboard items older than 24h");
+                    }
+                }
+            })
+            .await;
+        }
+    });
+
     let _clipboard_thread = spawn_clipboard_worker(
         db,
         clips_dir,
         dbus_conn,
         tokio::runtime::Handle::current(),
         clipboard_paused,
+        itsm_enabled,
         Arc::clone(&shutdown),
     );
     let indexer_task =
@@ -687,6 +815,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     tokio::signal::ctrl_c().await?;
     println!("[catchypillsd] Shutdown requested");
     shutdown.store(true, Ordering::Relaxed);
+    cleanup_task.abort();
     let _ = indexer_task.await;
 
     Ok(())

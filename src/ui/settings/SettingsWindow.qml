@@ -391,6 +391,66 @@ Window {
                     }
                 }
             }
+
+            // -----------------------------------------------------------------
+            // 5. Bespoke Integrations (Advanced)
+            // -----------------------------------------------------------------
+            GroupBox {
+                id: bespokeGroup
+                Layout.fillWidth: true
+                title: "Bespoke Integrations (Advanced)"
+
+                background: Rectangle {
+                    y: bespokeGroup.topPadding - bespokeGroup.bottomPadding
+                    width: bespokeGroup.width
+                    height: bespokeGroup.height - bespokeGroup.topPadding + bespokeGroup.bottomPadding
+                    radius: 12
+                    color: Qt.rgba(1, 1, 1, 0.04)
+                    border.width: 1
+                    border.color: Qt.rgba(1, 1, 1, 0.10)
+                }
+
+                ColumnLayout {
+                    anchors.fill: parent
+                    spacing: 10
+
+                    Label {
+                        Layout.fillWidth: true
+                        color: "#94a3b8"
+                        font.pixelSize: 11
+                        wrapMode: Text.WordWrap
+                        text: "Personal workflow modules driven by ~/.config/catchypills/.env (excluded from git). Disabled by default for clean shared installs."
+                    }
+
+                    Switch {
+                        Layout.fillWidth: true
+                        text: "ServiceNow ITSM Prompt Generator"
+                        checked: configManager.enableITSM
+                        onToggled: configManager.enableITSM = checked
+                    }
+
+                    Switch {
+                        Layout.fillWidth: true
+                        text: "IoT & Smart Device Controls"
+                        checked: configManager.enableIoT
+                        onToggled: configManager.enableIoT = checked
+                    }
+
+                    Switch {
+                        Layout.fillWidth: true
+                        text: "Solar & Energy Telemetry"
+                        checked: configManager.enableSolar
+                        onToggled: configManager.enableSolar = checked
+                    }
+
+                    Switch {
+                        Layout.fillWidth: true
+                        text: "Worklog & Timesheet Sync"
+                        checked: configManager.enableWorklog
+                        onToggled: configManager.enableWorklog = checked
+                    }
+                }
+            }
         }
     }
 }

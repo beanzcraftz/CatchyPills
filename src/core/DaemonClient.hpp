@@ -42,6 +42,7 @@ public:
     Q_INVOKABLE void refreshClips(int limit = 25);
     Q_INVOKABLE void searchFiles(const QString &query, int limit = 25);
     Q_INVOKABLE void setClipboardPaused(bool paused);
+    Q_INVOKABLE void setItsmEnabled(bool enabled);
     Q_INVOKABLE void copyClipText(const QString &text);
 
 Q_SIGNALS:
@@ -49,9 +50,11 @@ Q_SIGNALS:
     void recentClipsChanged();
     void searchResultsChanged();
     void clipboardUpdated(qint64 clipId, const QString &preview);
+    void htmlClipboardReady(const QString &htmlText);
 
 private Q_SLOTS:
     void onClipboardUpdated(qint64 clipId, const QString &preview);
+    void onHtmlClipboardReady(const QString &htmlText);
 
 private:
     static constexpr const char *kServiceName = "io.hearnelabs.CatchyPillsDaemon";

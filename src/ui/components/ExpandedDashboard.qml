@@ -11,10 +11,28 @@ import QtQuick.Layouts
 Item {
     id: root
 
-    property int activeTab: 0 // 0 = Clipboard, 1 = Shelf, 2 = Media, 3 = Notes, 4 = Search, 5 = Capture
+    property int activeTab: 0 // 0 = Clipboard, 1 = Shelf, 2 = Media, 3 = Notes, 4 = Search, 5 = Capture, 6 = ITSM
     readonly property bool searchInputFocused: searchPaletteView.inputFocused || notesView.inputFocused
     readonly property bool weatherPopupOpen: forecastPopup.opened
     readonly property bool shelfContainsDrag: fileShelfView.containsDrag
+
+    Connections {
+        target: configManager
+        function onEnableITSMChanged() {
+            if (!configManager.enableITSM && root.activeTab === 6) {
+                root.activeTab = 0
+            }
+        }
+    }
+
+    Connections {
+        target: itsmController
+        function onIsHtmlReadyChanged() {
+            if (configManager.enableITSM && itsmController.isHtmlReady) {
+                root.activeTab = 6
+            }
+        }
+    }
 
     signal collapseRequested()
     signal collapseImmediatelyRequested()
@@ -42,7 +60,7 @@ Item {
         // Glassmorphic Floating Tab Strip
         RowLayout {
             Layout.fillWidth: true
-            spacing: 6
+            spacing: 5
 
             Repeater {
                 model: [
@@ -51,7 +69,8 @@ Item {
                     { label: "Media", tip: "SpotiBar MPRIS2 playback controls & animated equalizer" },
                     { label: "Notes", tip: "Quick persistent SQLite To-Do notes & thoughts" },
                     { label: "Search", tip: "Search indexed local files or query DuckDuckGo on the web" },
-                    { label: "Capture", tip: "OmniShot region screenshots, annotations & screen recording" }
+                    { label: "Capture", tip: "OmniShot region screenshots, annotations & screen recording" },
+                    { label: "ITSM", tip: "ServiceNow KB HTML template prompt generator" }
                 ]
 
                 delegate: Item {
@@ -60,7 +79,8 @@ Item {
                     required property var modelData
                     readonly property bool selected: root.activeTab === index
 
-                    implicitWidth: tabLabel.implicitWidth + 20
+                    visible: index < 6 || configManager.enableITSM
+                    implicitWidth: tabLabel.implicitWidth + 18
                     implicitHeight: 32
 
                     RectangularShadow {
@@ -668,6 +688,12 @@ Item {
                         }
                     }
                 }
+            }
+
+            // 6. Bespoke ServiceNow ITSM Template Prompt Generator
+            ITSMView {
+                id: itsmView
+                visible: configManager.enableITSM
             }
         }
     }

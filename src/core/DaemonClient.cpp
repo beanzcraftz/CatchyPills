@@ -60,6 +60,14 @@ DaemonClient::DaemonClient(QObject *parent)
         this,
         SLOT(onClipboardUpdated(qint64,QString)));
 
+    QDBusConnection::sessionBus().connect(
+        QString::fromLatin1(kServiceName),
+        QString::fromLatin1(kObjectPath),
+        QString::fromLatin1(kInterfaceName),
+        QStringLiteral("HtmlClipboardReady"),
+        this,
+        SLOT(onHtmlClipboardReady(QString)));
+
     refreshClips();
 }
 
@@ -69,6 +77,11 @@ void DaemonClient::onClipboardUpdated(qint64 clipId, const QString &preview)
     Q_EMIT latestClipPreviewChanged();
     Q_EMIT clipboardUpdated(clipId, preview);
     refreshClips();
+}
+
+void DaemonClient::onHtmlClipboardReady(const QString &htmlText)
+{
+    Q_EMIT htmlClipboardReady(htmlText);
 }
 
 void DaemonClient::refreshClips(int limit)
@@ -157,6 +170,18 @@ void DaemonClient::setClipboardPaused(bool paused)
         QString::fromLatin1(kInterfaceName),
         QStringLiteral("SetClipboardPaused"));
     msg << paused;
+
+    QDBusConnection::sessionBus().asyncCall(msg);
+}
+
+void DaemonClient::setItsmEnabled(bool enabled)
+{
+    auto msg = QDBusMessage::createMethodCall(
+        QString::fromLatin1(kServiceName),
+        QString::fromLatin1(kObjectPath),
+        QString::fromLatin1(kInterfaceName),
+        QStringLiteral("SetItsmEnabled"));
+    msg << enabled;
 
     QDBusConnection::sessionBus().asyncCall(msg);
 }
