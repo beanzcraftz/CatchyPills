@@ -16,8 +16,8 @@ namespace catchypills::sysmon {
 class SysMonController final : public QObject
 {
     Q_OBJECT
-    Q_PROPERTY(int cpuPercent READ cpuPercent NOTIFY statsUpdated)
-    Q_PROPERTY(int ramPercent READ ramPercent NOTIFY statsUpdated)
+    Q_PROPERTY(int cpuPercent READ cpuPercent NOTIFY cpuPercentChanged)
+    Q_PROPERTY(int ramPercent READ ramPercent NOTIFY ramPercentChanged)
     Q_PROPERTY(QVariantList cpuHistory READ cpuHistory NOTIFY cpuHistoryChanged)
 
 public:
@@ -33,6 +33,8 @@ public:
     Q_INVOKABLE void sampleNow();
 
 Q_SIGNALS:
+    void cpuPercentChanged();
+    void ramPercentChanged();
     void statsUpdated();
     void cpuHistoryChanged();
 

@@ -1,3 +1,5 @@
+mod db;
+
 use std::collections::{HashMap, hash_map::DefaultHasher};
 use std::error::Error;
 use std::fs;
@@ -9,7 +11,6 @@ use std::sync::{
     Arc, Mutex, RwLock,
     atomic::{AtomicBool, AtomicUsize, Ordering},
 };
-use std::time::{SystemTime, UNIX_EPOCH};
 
 use ignore::WalkBuilder;
 use notify::{EventKind, RecommendedWatcher, RecursiveMode, Watcher};
@@ -146,6 +147,49 @@ impl DaemonIpc {
         .unwrap_or_default()
     }
 
+    async fn get_notes(&self) -> Vec<db::NoteRecord> {
+        let Ok(conn) = self.db.lock() else {
+            return Vec::new();
+        };
+        db::get_notes(&conn)
+    }
+
+    async fn add_note(&self, content: String) -> i64 {
+        let Ok(conn) = self.db.lock() else {
+            return 0;
+        };
+        db::add_note(&conn, &content, None).unwrap_or(0)
+    }
+
+    async fn add_note_with_alarm(&self, content: String, alarm_epoch: i64) -> i64 {
+        let Ok(conn) = self.db.lock() else {
+            return 0;
+        };
+        let alarm = if alarm_epoch > 0 { Some(alarm_epoch) } else { None };
+        db::add_note(&conn, &content, alarm).unwrap_or(0)
+    }
+
+    async fn snooze_note_alarm(&self, note_id: i64, new_alarm_epoch: i64) -> bool {
+        let Ok(conn) = self.db.lock() else {
+            return false;
+        };
+        db::snooze_note_alarm(&conn, note_id, new_alarm_epoch)
+    }
+
+    async fn dismiss_note_alarm(&self, note_id: i64) -> bool {
+        let Ok(conn) = self.db.lock() else {
+            return false;
+        };
+        db::dismiss_note_alarm(&conn, note_id)
+    }
+
+    async fn delete_note(&self, note_id: i64) -> bool {
+        let Ok(conn) = self.db.lock() else {
+            return false;
+        };
+        db::delete_note(&conn, note_id)
+    }
+
     /// Emitted whenever ext-data-control-v1 captures a non-secret clipboard change.
     #[zbus(signal)]
     async fn clipboard_updated(
@@ -153,46 +197,6 @@ impl DaemonIpc {
         clip_id: i64,
         preview: &str,
     ) -> zbus::Result<()>;
-}
-
-fn unix_timestamp_ms() -> i64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_millis() as i64)
-        .unwrap_or(0)
-}
-
-fn app_data_dir() -> PathBuf {
-    let base = std::env::var_os("XDG_DATA_HOME")
-        .map(PathBuf::from)
-        .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".local/share")))
-        .unwrap_or_else(std::env::temp_dir);
-    base.join("CatchyPills")
-}
-
-fn init_database() -> Result<(Connection, PathBuf), rusqlite::Error> {
-    let data_dir = app_data_dir();
-    let clips_dir = data_dir.join("clips");
-    let _ = fs::create_dir_all(&clips_dir);
-
-    let conn = Connection::open(data_dir.join("catchypills.db3"))?;
-    conn.execute_batch(
-        "
-        PRAGMA journal_mode = WAL;
-        CREATE TABLE IF NOT EXISTS clipboard_items (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            kind TEXT NOT NULL,
-            mime TEXT NOT NULL,
-            preview TEXT NOT NULL,
-            content TEXT NOT NULL DEFAULT '',
-            image_path TEXT NOT NULL DEFAULT '',
-            content_hash TEXT NOT NULL,
-            created_at INTEGER NOT NULL
-        );
-        CREATE INDEX IF NOT EXISTS idx_clipboard_hash ON clipboard_items(kind, content_hash);
-        ",
-    )?;
-    Ok((conn, clips_dir))
 }
 
 fn hash_bytes(bytes: &[u8]) -> String {
@@ -217,7 +221,7 @@ fn store_clipboard_payload(
         return None;
     }
 
-    let now_ms = unix_timestamp_ms();
+    let now_ms = db::unix_timestamp_ms();
     let digest = hash_bytes(payload);
 
     let (preview, text_content, image_path) = if kind == "image" {
@@ -647,7 +651,7 @@ fn spawn_file_indexer_worker(
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    let (conn, clips_dir) = init_database()?;
+    let (conn, clips_dir) = db::init_database()?;
     let db = Arc::new(Mutex::new(conn));
     let file_index = Arc::new(RwLock::new(Vec::new()));
     let indexed_count = Arc::new(AtomicUsize::new(0));

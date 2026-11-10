@@ -9,6 +9,8 @@ Item {
     property bool recordingActive: false
     property bool daemonOnline: true
     property bool externalDragActive: false
+    property bool alarmActive: false
+    property string alarmText: ""
     readonly property bool dragging: dragArea.dragging
     readonly property bool repositioning: dragArea.pressed || dragArea.dragging
     readonly property bool hasSysMon: typeof sysMonController !== "undefined" && sysMonController !== null
@@ -21,6 +23,8 @@ Item {
     signal dragMoved(real dx, real dy, real anchorX, real anchorY)
     signal dragFinished()
     signal clicked()
+    signal snoozeAlarmRequested()
+    signal dismissAlarmRequested()
 
     TapHandler {
         acceptedButtons: Qt.LeftButton
@@ -103,11 +107,11 @@ Item {
             mipmap: true
         }
 
-        // Brand wordmark & live status
+        // Brand wordmark & live status / triggered alarm banner
         Row {
             anchors.verticalCenter: parent.verticalCenter
             spacing: 0
-            visible: !root.recordingActive && root.daemonOnline
+            visible: !root.alarmActive && !root.recordingActive && root.daemonOnline
 
             Text {
                 color: "#f8fafc"
@@ -124,30 +128,108 @@ Item {
             }
         }
 
+        Row {
+            anchors.verticalCenter: parent.verticalCenter
+            spacing: 6
+            visible: root.alarmActive
+
+            Text {
+                anchors.verticalCenter: parent.verticalCenter
+                color: "#fcd34d"
+                font.pixelSize: 12
+                font.weight: Font.DemiBold
+                maximumLineCount: 1
+                elide: Text.ElideRight
+                width: Math.min(implicitWidth, 160)
+                text: "⏰ " + root.alarmText
+            }
+
+            Rectangle {
+                anchors.verticalCenter: parent.verticalCenter
+                implicitWidth: pillSnoozeTxt.implicitWidth + 10
+                implicitHeight: 20
+                radius: 6
+                color: pillSnoozeHover.hovered
+                       ? Qt.rgba(0.0, 0.90, 0.64, 0.30)
+                       : Qt.rgba(0.0, 0.90, 0.64, 0.16)
+                border.width: 1
+                border.color: "#00e5a3"
+
+                HoverHandler { id: pillSnoozeHover }
+
+                Text {
+                    id: pillSnoozeTxt
+                    anchors.centerIn: parent
+                    color: "#00e5a3"
+                    font.pixelSize: 9
+                    font.weight: Font.Bold
+                    text: "+10m"
+                }
+
+                MouseArea {
+                    anchors.fill: parent
+                    acceptedButtons: Qt.LeftButton
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: root.snoozeAlarmRequested()
+                }
+            }
+
+            Rectangle {
+                anchors.verticalCenter: parent.verticalCenter
+                implicitWidth: 18
+                implicitHeight: 20
+                radius: 6
+                color: pillDismissHover.hovered
+                       ? Qt.rgba(0.94, 0.27, 0.27, 0.34)
+                       : Qt.rgba(1, 1, 1, 0.10)
+                border.width: 1
+                border.color: Qt.rgba(1, 1, 1, 0.22)
+
+                HoverHandler { id: pillDismissHover }
+
+                Text {
+                    anchors.centerIn: parent
+                    color: "#f8fafc"
+                    font.pixelSize: 10
+                    font.weight: Font.Bold
+                    text: "×"
+                }
+
+                MouseArea {
+                    anchors.fill: parent
+                    acceptedButtons: Qt.LeftButton
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: root.dismissAlarmRequested()
+                }
+            }
+        }
+
         Text {
             anchors.verticalCenter: parent.verticalCenter
-            visible: root.recordingActive || !root.daemonOnline
+            visible: !root.alarmActive && (root.recordingActive || !root.daemonOnline)
             color: root.recordingActive ? "#fca5a5" : "#fcd34d"
             font.pixelSize: 12
             font.weight: Font.Medium
             text: root.recordingActive ? "Recording active..." : "Daemon offline"
         }
 
-        // Status indicator dot: red pulse when recording, amber when daemon offline, neon emerald when ready.
+        // Status indicator dot: amber pulse on alarm, red pulse when recording, emerald when ready.
         Rectangle {
             width: 7
             height: 7
             radius: 3.5
             anchors.verticalCenter: parent.verticalCenter
-            color: root.recordingActive
-                   ? "#ef4444"
-                   : (root.daemonOnline ? "#00e5a3" : "#f59e0b")
+            color: root.alarmActive
+                   ? "#f59e0b"
+                   : (root.recordingActive
+                      ? "#ef4444"
+                      : (root.daemonOnline ? "#00e5a3" : "#f59e0b"))
 
             SequentialAnimation on opacity {
-                running: root.recordingActive
+                running: root.recordingActive || root.alarmActive
                 loops: Animation.Infinite
-                NumberAnimation { to: 0.25; duration: 480 }
-                NumberAnimation { to: 1.0; duration: 480 }
+                NumberAnimation { to: 0.25; duration: 420 }
+                NumberAnimation { to: 1.0; duration: 420 }
             }
         }
 

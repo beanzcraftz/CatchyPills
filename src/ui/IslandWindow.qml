@@ -162,10 +162,19 @@ Window {
             // Cohesive #1E1E2E dark glassmorphism with #00E5A3 neon emerald rim glow
             // backed by KWin's ext_background_effect_v1 blur region.
             color: Qt.rgba(0.118, 0.118, 0.180, 0.88)
-            border.width: 1
-            border.color: (root.dragActive || state === "expanded")
-                          ? Qt.rgba(0.0, 0.90, 0.64, 0.50)
-                          : Qt.rgba(0.0, 0.90, 0.64, 0.30)
+            property color alarmPulseColor: "#f59e0b"
+            SequentialAnimation on alarmPulseColor {
+                running: notesModel.hasActiveAlarm
+                loops: Animation.Infinite
+                ColorAnimation { from: "#f59e0b"; to: "#00e5a3"; duration: 550 }
+                ColorAnimation { from: "#00e5a3"; to: "#f59e0b"; duration: 550 }
+            }
+            border.width: notesModel.hasActiveAlarm ? 2 : 1
+            border.color: notesModel.hasActiveAlarm
+                          ? alarmPulseColor
+                          : ((root.dragActive || state === "expanded")
+                             ? Qt.rgba(0.0, 0.90, 0.64, 0.50)
+                             : Qt.rgba(0.0, 0.90, 0.64, 0.30))
             clip: true
 
             // Update Wayland wl_surface.set_input_region via QWindow::setMask() on every
@@ -298,6 +307,11 @@ Window {
                 recordingActive: captureCoordinator.recording
                 daemonOnline: appController.daemonOnline
                 externalDragActive: root.dragActive
+                alarmActive: notesModel.hasActiveAlarm
+                alarmText: notesModel.activeAlarmText
+
+                onSnoozeAlarmRequested: notesModel.snoozeAlarm(notesModel.activeAlarmNoteId, 10)
+                onDismissAlarmRequested: notesModel.dismissAlarm(notesModel.activeAlarmNoteId)
 
                 onDragPressed: {
                     hoverExpandDelay.stop()

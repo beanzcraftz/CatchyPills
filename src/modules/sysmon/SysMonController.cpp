@@ -25,7 +25,10 @@ void SysMonController::sampleNow()
     const int cpu = readCpuUsagePercent();
     const int ram = readRamUsagePercent();
 
-    const bool metricsChanged = (cpu != m_cpuPercent || ram != m_ramPercent);
+    const bool cpuChanged = (cpu != m_cpuPercent);
+    const bool ramChanged = (ram != m_ramPercent);
+    const bool initialSample = m_cpuHistory.isEmpty();
+
     m_cpuPercent = cpu;
     m_ramPercent = ram;
 
@@ -35,7 +38,13 @@ void SysMonController::sampleNow()
     }
 
     Q_EMIT cpuHistoryChanged();
-    if (metricsChanged || m_cpuHistory.size() <= 1) {
+    if (cpuChanged || initialSample) {
+        Q_EMIT cpuPercentChanged();
+    }
+    if (ramChanged || initialSample) {
+        Q_EMIT ramPercentChanged();
+    }
+    if (cpuChanged || ramChanged || initialSample) {
         Q_EMIT statsUpdated();
     }
 }
@@ -47,7 +56,14 @@ int SysMonController::readCpuUsagePercent()
         return m_cpuPercent;
     }
 
-    const QString line = QString::fromLatin1(file.readLine()).trimmed();
+    // /proc virtual files have size 0 so readAll() avoids premature QFile::atEnd() EOF.
+    const QString content = QString::fromLatin1(file.readAll());
+    const QStringList lines = content.split(QLatin1Char('\n'), Qt::SkipEmptyParts);
+    if (lines.isEmpty()) {
+        return m_cpuPercent;
+    }
+
+    const QString line = lines.constFirst().trimmed();
     if (!line.startsWith(QStringLiteral("cpu"))) {
         return m_cpuPercent;
     }
@@ -98,44 +114,45 @@ int SysMonController::readRamUsagePercent() const
         return m_ramPercent;
     }
 
-    quint64 memTotalKb = 0;
-    quint64 memAvailableKb = 0;
-    quint64 memFreeKb = 0;
+    // Read the entire virtual procfs file at once; /proc/meminfo reports 0 size so atEnd() is unreliable.
+    const QString raw = QString::fromLatin1(file.readAll());
+    const QStringList lines = raw.split(QLatin1Char('\n'), Qt::SkipEmptyParts);
+
+    qint64 memTotal = 0;
+    qint64 memAvailable = 0;
+    qint64 memFree = 0;
     bool hasAvailable = false;
 
-    while (!file.atEnd()) {
-        const QString line = QString::fromLatin1(file.readLine());
+    for (const QString &line : lines) {
         if (line.startsWith(QStringLiteral("MemTotal:"))) {
             const QStringList parts = line.split(QLatin1Char(' '), Qt::SkipEmptyParts);
             if (parts.size() >= 2) {
-                memTotalKb = parts.at(1).toULongLong();
+                memTotal = parts.at(1).toLongLong();
             }
         } else if (line.startsWith(QStringLiteral("MemAvailable:"))) {
             const QStringList parts = line.split(QLatin1Char(' '), Qt::SkipEmptyParts);
             if (parts.size() >= 2) {
-                memAvailableKb = parts.at(1).toULongLong();
+                memAvailable = parts.at(1).toLongLong();
                 hasAvailable = true;
             }
         } else if (line.startsWith(QStringLiteral("MemFree:"))) {
             const QStringList parts = line.split(QLatin1Char(' '), Qt::SkipEmptyParts);
             if (parts.size() >= 2) {
-                memFreeKb = parts.at(1).toULongLong();
+                memFree = parts.at(1).toLongLong();
             }
         }
-        if (memTotalKb > 0 && hasAvailable) {
+        if (memTotal > 0 && hasAvailable) {
             break;
         }
     }
 
-    if (memTotalKb == 0) {
+    if (memTotal <= 0) {
         return m_ramPercent;
     }
 
-    const quint64 availKb = hasAvailable ? memAvailableKb : memFreeKb;
-    const quint64 usedKb = (memTotalKb > availKb) ? (memTotalKb - availKb) : 0ULL;
-    const double ratio = (100.0 * static_cast<double>(usedKb))
-        / static_cast<double>(memTotalKb);
-    return std::clamp(static_cast<int>(std::lround(ratio)), 0, 100);
+    const qint64 effectiveAvail = hasAvailable ? memAvailable : memFree;
+    const int ramPct = qRound((static_cast<double>(memTotal - effectiveAvail) / static_cast<double>(memTotal)) * 100.0);
+    return std::clamp(ramPct, 0, 100);
 }
 
 } // namespace catchypills::sysmon
