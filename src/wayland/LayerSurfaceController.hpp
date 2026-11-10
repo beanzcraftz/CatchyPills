@@ -12,8 +12,9 @@ namespace catchypills::wayland {
 
 /**
  * Configures and manages a QtQuick window as a Wayland zwlr_layer_shell_v1
- * floating island surface on KDE Plasma 6 (KWin), with dynamic input-region
- * masking and ext_background_effect_v1 frosted-glass blur.
+ * surface on KDE Plasma 6 (KWin), handling both the top-anchored Dynamic Island
+ * (with dynamic QWindow::setMask click-through and ext_background_effect_v1 blur)
+ * and the fullscreen 3840x1080 OmniShot region-selection overlay.
  */
 class LayerSurfaceController final : public QObject
 {
@@ -28,6 +29,12 @@ public:
      * Anchors flush to the top-center bezel of the target 3840x1080 display.
      */
     void attachToLayerShell(QScreen *preferredScreen = nullptr);
+
+    /**
+     * Binds LayerShellQt properties for the fullscreen CaptureOverlay across all
+     * edges of the 3840x1080 display, covering even the bottom Plasma panel.
+     */
+    void attachAsFullscreenOverlay(QScreen *preferredScreen = nullptr);
 
     /**
      * Dynamically constrains pointer hit-testing to only the visible pill area

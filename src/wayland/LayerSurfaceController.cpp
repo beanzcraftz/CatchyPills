@@ -68,6 +68,47 @@ void LayerSurfaceController::attachToLayerShell(QScreen *preferredScreen)
     layerWindow->setScope(QStringLiteral("catchypills-island"));
 }
 
+void LayerSurfaceController::attachAsFullscreenOverlay(QScreen *preferredScreen)
+{
+    if (!m_window) {
+        return;
+    }
+
+    m_window->setColor(Qt::transparent);
+    m_window->setFlag(Qt::FramelessWindowHint, true);
+
+    QScreen *targetScreen = resolveUltrawideScreen(preferredScreen);
+    if (targetScreen) {
+        m_window->setScreen(targetScreen);
+        m_window->resize(targetScreen->geometry().size());
+    }
+
+    auto *layerWindow = LayerShellQt::Window::get(m_window);
+    if (!layerWindow) {
+        return;
+    }
+
+    if (targetScreen) {
+        layerWindow->setWantsToBeOnActiveScreen(false);
+        layerWindow->setScreen(targetScreen);
+        layerWindow->setDesiredSize(targetScreen->geometry().size());
+    }
+
+    // Anchor all four edges with exclusiveZone = -1 so the region-selection
+    // canvas spans the full 3840x1080 surface, covering the bottom Plasma panel.
+    layerWindow->setLayer(LayerShellQt::Window::LayerOverlay);
+    const auto allAnchors = LayerShellQt::Window::Anchors(LayerShellQt::Window::AnchorTop)
+                            | LayerShellQt::Window::AnchorBottom
+                            | LayerShellQt::Window::AnchorLeft
+                            | LayerShellQt::Window::AnchorRight;
+    layerWindow->setAnchors(allAnchors);
+    layerWindow->setExclusiveZone(-1);
+    layerWindow->setMargins(QMargins(0, 0, 0, 0));
+    layerWindow->setKeyboardInteractivity(LayerShellQt::Window::KeyboardInteractivityExclusive);
+    layerWindow->setActivateOnShow(true);
+    layerWindow->setScope(QStringLiteral("catchypills-capture-overlay"));
+}
+
 void LayerSurfaceController::updateInputRegion(const QRect &pillRect, int cornerRadius)
 {
     if (!m_window) {

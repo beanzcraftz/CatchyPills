@@ -5,8 +5,12 @@ Comment=Floating Wayland island for media, clipboard history, fast file search, 
 Exec=catchypills
 Icon=catchypills
 Type=Application
+Terminal=false
 StartupNotify=false
+OnlyShowIn=KDE;
 Categories=Utility;Graphics;
+# Phase 2 starts after Plasma shell/panels/KWin compositor initialization completes.
+X-KDE-autostart-phase=2
 # Required by KWin 6 to permit silent ScreenShot2 capture without OS portal prompts.
 X-KDE-DBUS-Restricted-Interfaces=org.kde.KWin.ScreenShot2
 X-KDE-Wayland-Interfaces=org_kde_plasma_window_management

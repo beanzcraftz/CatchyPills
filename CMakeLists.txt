@@ -33,6 +33,12 @@ find_package(KPipeWire REQUIRED)
 
 qt_add_executable(catchypills
     src/main.cpp
+    src/app/Application.hpp
+    src/app/Application.cpp
+    src/core/DaemonClient.hpp
+    src/core/DaemonClient.cpp
+    src/modules/capture/CaptureCoordinator.hpp
+    src/modules/capture/CaptureCoordinator.cpp
     src/wayland/LayerSurfaceController.hpp
     src/wayland/LayerSurfaceController.cpp
 )
@@ -42,6 +48,10 @@ qt_add_qml_module(catchypills
     VERSION 1.0
     QML_FILES
         src/ui/IslandWindow.qml
+        src/ui/components/CollapsedPill.qml
+        src/ui/components/ExpandedDashboard.qml
+        src/ui/capture/CaptureOverlay.qml
+        src/ui/capture/AnnotationCanvas.qml
 )
 
 # Note exact imported target names on KDE Plasma 6 / CachyOS:

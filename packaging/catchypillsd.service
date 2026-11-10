@@ -1,14 +1,20 @@
 [Unit]
 Description=CatchyPills Background Clipboard & File Indexer Daemon
-After=graphical-session.target
+Documentation=https://github.com/beanzcraftz/CatchyPills
+# Ensure D-Bus and KDE Wayland compositor are active before binding ext-data-control-v1.
+Wants=plasma-workspace-wayland.target
+After=graphical-session.target plasma-workspace-wayland.target dbus.service
 PartOf=graphical-session.target
+StartLimitIntervalSec=60
+StartLimitBurst=5
 
 [Service]
 Type=dbus
 BusName=io.hearnelabs.CatchyPillsDaemon
 ExecStart=/usr/bin/catchypillsd
 Restart=on-failure
-RestartSec=2
+RestartSec=2s
+TimeoutStopSec=5s
 
 [Install]
-WantedBy=graphical-session.target
+WantedBy=plasma-workspace-wayland.target graphical-session.target

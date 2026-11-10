@@ -10,6 +10,7 @@ license = "GPL-3.0-or-later"
 # Note: wayland-protocols 0.32 pairs with wayland-client 0.31.
 wayland-client = "0.31"
 wayland-protocols = { version = "0.32", features = ["client", "staging"] }
+os_pipe = "1"
 
 # Persistence for clipboard history & cached file search metadata.
 rusqlite = { version = "0.41", features = ["bundled"] }
@@ -18,6 +19,7 @@ rusqlite = { version = "0.41", features = ["bundled"] }
 ignore = "0.4"
 notify = "8"
 nucleo = "0.5"
+nucleo-matcher = "0.3"
 
 # Local Session D-Bus IPC with the C++20/Qt6 CatchyPills frontend.
 zbus = { version = "5", default-features = false, features = ["tokio"] }

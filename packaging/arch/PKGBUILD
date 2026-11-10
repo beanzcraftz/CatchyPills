@@ -4,7 +4,7 @@ pkgver=0.1.0
 pkgrel=1
 pkgdesc="Native Wayland Dynamic Island, clipboard/search daemon, and screen capture suite for KDE Plasma 6"
 arch=('x86_64')
-url="https://github.com/hearnelabs/CatchyPills"
+url="https://github.com/beanzcraftz/CatchyPills"
 license=('GPL-3.0-or-later')
 
 depends=(
@@ -58,6 +58,10 @@ package() {
 
     # Installs /usr/bin/catchypills and /usr/share/applications/io.hearnelabs.CatchyPills.desktop
     DESTDIR="$pkgdir" cmake --install build
+
+    # Install XDG autostart copy for KDE Plasma 6 login phase 2
+    install -Dm644 "packaging/io.hearnelabs.CatchyPills.desktop" \
+        "$pkgdir/etc/xdg/autostart/io.hearnelabs.CatchyPills.desktop"
 
     # Install Rust daemon binary and systemd --user unit
     install -Dm755 "daemon/target/release/catchypillsd" "$pkgdir/usr/bin/catchypillsd"
