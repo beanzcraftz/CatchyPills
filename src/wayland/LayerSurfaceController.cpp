@@ -257,6 +257,22 @@ void LayerSurfaceController::updateInputRegion(const QRect &pillRect, int corner
         return;
     }
 
+    if (m_dragActive) {
+        // Bypass tight pill masking while an external Wayland drag is active so
+        // the full 760x460 canvas continues accepting pointer/drag events during
+        // the collapse-to-expand transition.
+        const QSize canvasSize = m_window->size().isEmpty() ? kDefaultCanvasSize : m_window->size();
+        m_window->setFlag(Qt::WindowTransparentForInput, false);
+        m_window->setMask(QRegion(QRect(QPoint(0, 0), canvasSize)));
+
+        if (pillRect.isValid() && !pillRect.isEmpty()) {
+            QPainterPath path;
+            path.addRoundedRect(QRectF(pillRect), cornerRadius, cornerRadius);
+            applyBlurBehind(QRegion(path.toFillPolygon().toPolygon()));
+        }
+        return;
+    }
+
     if (!pillRect.isValid() || pillRect.isEmpty()) {
         setClickThrough(true);
         return;
@@ -273,6 +289,30 @@ void LayerSurfaceController::updateInputRegion(const QRect &pillRect, int corner
     m_window->setMask(maskRegion);
 
     applyBlurBehind(maskRegion);
+}
+
+void LayerSurfaceController::setDragActive(bool active)
+{
+    if (m_dragActive == active) {
+        return;
+    }
+
+    m_dragActive = active;
+    Q_EMIT dragActiveChanged(m_dragActive);
+
+    if (!m_window || m_clickThrough) {
+        return;
+    }
+
+    const QRect targetRect = (m_lastPillRect.isValid() && !m_lastPillRect.isEmpty())
+        ? m_lastPillRect
+        : QRect(m_pillCanvasX, m_pillCanvasY,
+                kCollapsedPillSize.width(), kCollapsedPillSize.height());
+    updateInputRegion(targetRect, m_lastCornerRadius);
+
+    if (m_window->isVisible()) {
+        m_window->requestUpdate();
+    }
 }
 
 void LayerSurfaceController::setClickThrough(bool enabled)

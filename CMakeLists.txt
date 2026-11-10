@@ -44,6 +44,8 @@ qt_add_executable(catchypills
     src/core/DaemonClient.cpp
     src/modules/capture/CaptureCoordinator.hpp
     src/modules/capture/CaptureCoordinator.cpp
+    src/modules/shelf/FileShelfModel.hpp
+    src/modules/shelf/FileShelfModel.cpp
     src/wayland/LayerSurfaceController.hpp
     src/wayland/LayerSurfaceController.cpp
 )
@@ -55,6 +57,7 @@ qt_add_qml_module(catchypills
         src/ui/IslandWindow.qml
         src/ui/components/CollapsedPill.qml
         src/ui/components/ExpandedDashboard.qml
+        src/ui/components/FileShelfView.qml
         src/ui/capture/CaptureOverlay.qml
         src/ui/capture/AnnotationCanvas.qml
         src/ui/settings/SettingsWindow.qml

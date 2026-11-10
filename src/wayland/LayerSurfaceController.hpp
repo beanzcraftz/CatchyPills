@@ -21,6 +21,7 @@ class LayerSurfaceController final : public QObject
 {
     Q_OBJECT
     Q_PROPERTY(bool clickThrough READ isClickThrough WRITE setClickThrough NOTIFY clickThroughChanged)
+    Q_PROPERTY(bool dragActive READ isDragActive WRITE setDragActive NOTIFY dragActiveChanged)
     Q_PROPERTY(int surfaceX READ surfaceX NOTIFY positionChanged)
     Q_PROPERTY(int surfaceY READ surfaceY NOTIFY positionChanged)
     Q_PROPERTY(int pillX READ pillX NOTIFY positionChanged)
@@ -73,6 +74,9 @@ public:
     Q_INVOKABLE void setClickThrough(bool enabled);
     bool isClickThrough() const noexcept { return m_clickThrough; }
 
+    Q_INVOKABLE void setDragActive(bool active);
+    bool isDragActive() const noexcept { return m_dragActive; }
+
     int surfaceX() const noexcept { return m_surfaceX; }
     int surfaceY() const noexcept { return m_surfaceY; }
     int pillX() const noexcept { return m_pillX; }
@@ -91,6 +95,7 @@ public:
 
 Q_SIGNALS:
     void clickThroughChanged(bool enabled);
+    void dragActiveChanged(bool active);
     void positionChanged();
 
 private:
@@ -102,6 +107,7 @@ private:
     QRect m_lastPillRect;
     int m_lastCornerRadius{18};
     bool m_clickThrough{false};
+    bool m_dragActive{false};
     int m_surfaceX{0};
     int m_surfaceY{0};
     int m_pillX{0};

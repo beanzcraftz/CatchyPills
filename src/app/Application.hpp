@@ -20,6 +20,10 @@ namespace catchypills::core {
 class DaemonClient;
 }
 
+namespace catchypills::shelf {
+class FileShelfModel;
+}
+
 namespace catchypills::wayland {
 class LayerSurfaceController;
 }
@@ -72,6 +76,7 @@ private:
     ConfigManager *m_configManager{nullptr};
     QQmlApplicationEngine *m_engine{nullptr};
     core::DaemonClient *m_daemonClient{nullptr};
+    shelf::FileShelfModel *m_fileShelfModel{nullptr};
     capture::CaptureImageProvider *m_imageProvider{nullptr};
     capture::CaptureCoordinator *m_captureCoordinator{nullptr};
     wayland::LayerSurfaceController *m_islandLayer{nullptr};

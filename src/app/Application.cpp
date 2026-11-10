@@ -3,6 +3,7 @@
 #include "ConfigManager.hpp"
 #include "core/DaemonClient.hpp"
 #include "modules/capture/CaptureCoordinator.hpp"
+#include "modules/shelf/FileShelfModel.hpp"
 #include "wayland/LayerSurfaceController.hpp"
 
 #include <QAction>
@@ -64,13 +65,17 @@ bool Application::initialize()
     m_configManager = new ConfigManager(this);
     m_imageProvider = new capture::CaptureImageProvider();
     m_daemonClient = new core::DaemonClient(this);
+    m_fileShelfModel = new shelf::FileShelfModel(this);
     m_captureCoordinator = new capture::CaptureCoordinator(m_imageProvider, this);
     m_islandLayer = new wayland::LayerSurfaceController(nullptr, this);
     m_engine = new QQmlApplicationEngine(this);
 
+    m_fileShelfModel->setRetentionHours(m_configManager->shelfRetentionHours());
     m_captureCoordinator->setOutputDirectory(m_configManager->screenshotsDir());
     m_captureCoordinator->setAutoCopyEnabled(m_configManager->autoCopyCapture());
 
+    connect(m_configManager, &ConfigManager::shelfRetentionHoursChanged,
+            m_fileShelfModel, &shelf::FileShelfModel::setRetentionHours);
     connect(m_configManager, &ConfigManager::screenshotsDirChanged,
             m_captureCoordinator, &capture::CaptureCoordinator::setOutputDirectory);
     connect(m_configManager, &ConfigManager::autoCopyCaptureChanged,
@@ -93,6 +98,7 @@ bool Application::initialize()
     m_engine->rootContext()->setContextProperty(QStringLiteral("appController"), this);
     m_engine->rootContext()->setContextProperty(QStringLiteral("configManager"), m_configManager);
     m_engine->rootContext()->setContextProperty(QStringLiteral("daemonClient"), m_daemonClient);
+    m_engine->rootContext()->setContextProperty(QStringLiteral("fileShelfModel"), m_fileShelfModel);
     m_engine->rootContext()->setContextProperty(QStringLiteral("captureCoordinator"), m_captureCoordinator);
     m_engine->rootContext()->setContextProperty(QStringLiteral("layerController"), m_islandLayer);
 

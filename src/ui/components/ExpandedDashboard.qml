@@ -11,28 +11,14 @@ Item {
 
     property int activeTab: 0 // 0 = Clipboard, 1 = File Shelf, 2 = Search, 3 = Capture
     readonly property bool searchInputFocused: searchInput.activeFocus
+    readonly property bool shelfContainsDrag: fileShelfView.containsDrag
 
     signal collapseRequested()
+    signal shelfDropCompleted()
+    signal shelfDragHoverChanged()
 
-    // In-memory staging model for Wayland drag-and-drop File Shelf items.
-    ListModel {
-        id: shelfModel
-    }
-
-    // Periodically expires unpinned File Shelf items per ConfigManager::shelfRetentionHours.
-    Timer {
-        interval: 60000
-        repeat: true
-        running: configManager.shelfRetentionHours > 0
-        onTriggered: {
-            var cutoff = Date.now() - (configManager.shelfRetentionHours * 3600 * 1000)
-            for (var i = shelfModel.count - 1; i >= 0; --i) {
-                var item = shelfModel.get(i)
-                if (item.addedAt && item.addedAt < cutoff) {
-                    shelfModel.remove(i)
-                }
-            }
-        }
+    function acceptShelfDrop(drop) {
+        return fileShelfView.acceptDrop(drop)
     }
 
     function focusSearch() {
@@ -208,107 +194,10 @@ Item {
             // -----------------------------------------------------------------
             // 1. FileShelfView (Wayland wl_data_device drag-and-drop dropzone)
             // -----------------------------------------------------------------
-            Item {
-                Rectangle {
-                    id: shelfDropZone
-                    anchors.fill: parent
-                    radius: 14
-                    color: dropArea.containsDrag
-                           ? Qt.rgba(0.22, 0.74, 0.97, 0.14)
-                           : Qt.rgba(1, 1, 1, 0.03)
-                    border.width: 1
-                    border.color: dropArea.containsDrag
-                                  ? Qt.rgba(0.22, 0.74, 0.97, 0.75)
-                                  : Qt.rgba(1, 1, 1, 0.10)
-
-                    DropArea {
-                        id: dropArea
-                        anchors.fill: parent
-                        onEntered: function(drag) {
-                            drag.acceptProposedAction()
-                        }
-                        onDropped: function(drop) {
-                            if (drop.hasUrls) {
-                                for (var i = 0; i < drop.urls.length; ++i) {
-                                    var urlStr = drop.urls[i].toString()
-                                    var parts = urlStr.split("/")
-                                    shelfModel.append({
-                                        name: parts[parts.length - 1] || urlStr,
-                                        uri: urlStr,
-                                        kind: "FILE",
-                                        addedAt: Date.now()
-                                    })
-                                }
-                                drop.acceptProposedAction()
-                            } else if (drop.hasText && drop.text.trim().length > 0) {
-                                shelfModel.append({
-                                    name: drop.text.trim().slice(0, 64),
-                                    uri: drop.text,
-                                    kind: "TEXT",
-                                    addedAt: Date.now()
-                                })
-                                drop.acceptProposedAction()
-                            }
-                        }
-                    }
-
-                    ListView {
-                        id: shelfList
-                        anchors.fill: parent
-                        anchors.margins: 8
-                        clip: true
-                        spacing: 6
-                        model: shelfModel
-
-                        delegate: Rectangle {
-                            required property int index
-                            required property string name
-                            required property string uri
-                            required property string kind
-                            width: shelfList.width
-                            height: 40
-                            radius: 10
-                            color: Qt.rgba(1, 1, 1, 0.06)
-                            border.width: 1
-                            border.color: Qt.rgba(1, 1, 1, 0.08)
-
-                            RowLayout {
-                                anchors.fill: parent
-                                anchors.leftMargin: 10
-                                anchors.rightMargin: 8
-                                spacing: 8
-
-                                Label {
-                                    color: "#34d399"
-                                    font.pixelSize: 10
-                                    font.bold: true
-                                    text: kind
-                                }
-                                Label {
-                                    Layout.fillWidth: true
-                                    elide: Text.ElideMiddle
-                                    color: "#e2e8f0"
-                                    font.pixelSize: 12
-                                    text: name
-                                }
-                                Button {
-                                    text: "×"
-                                    implicitWidth: 26
-                                    implicitHeight: 26
-                                    onClicked: shelfModel.remove(index)
-                                }
-                            }
-                        }
-                    }
-
-                    Label {
-                        anchors.centerIn: parent
-                        visible: shelfModel.count === 0
-                        color: "#64748b"
-                        font.pixelSize: 12
-                        text: "Drag & drop files, URLs, or snippets here to stage on shelf"
-                    }
-                }
+            FileShelfView {
+                id: fileShelfView
+                onDropCompleted: root.shelfDropCompleted()
+                onDragHoverChanged: root.shelfDragHoverChanged()
             }
 
             // -----------------------------------------------------------------
