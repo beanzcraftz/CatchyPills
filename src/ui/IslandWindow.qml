@@ -219,9 +219,6 @@ Window {
                 interval: 180
                 onTriggered: {
                     if (islandHover.hovered && !collapsedHud.repositioning && !root.dragActive) {
-                        if (configManager.enableITSM && itsmController.isHtmlReady) {
-                            dashboard.activeTab = 6
-                        }
                         pillContainer.state = "expanded"
                         if (root.hasLayer) {
                             layerController.setKeyboardInteractive(true)
@@ -376,9 +373,6 @@ Window {
                     }
                     hoverExpandDelay.stop()
                     collapseDelay.stop()
-                    if (configManager.enableITSM && itsmController.isHtmlReady) {
-                        dashboard.activeTab = 6
-                    }
                     pillContainer.state = "expanded"
                     if (root.hasLayer) {
                         layerController.setKeyboardInteractive(true)

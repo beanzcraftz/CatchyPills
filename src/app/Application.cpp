@@ -98,21 +98,6 @@ bool Application::initialize()
             m_captureCoordinator, &capture::CaptureCoordinator::setAutoCopyEnabled);
     connect(m_configManager, &ConfigManager::clipboardPausedChanged,
             m_daemonClient, &core::DaemonClient::setClipboardPaused);
-    connect(m_configManager, &ConfigManager::enableITSMChanged,
-            this, [this](bool enabled) {
-                if (m_daemonClient) {
-                    m_daemonClient->setItsmEnabled(enabled);
-                }
-                if (!enabled && m_itsmController) {
-                    m_itsmController->clearReady();
-                }
-            });
-    connect(m_daemonClient, &core::DaemonClient::htmlClipboardReady,
-            this, [this](const QString &htmlText) {
-                if (m_configManager && m_configManager->enableITSM() && m_itsmController) {
-                    m_itsmController->setHtmlReady(htmlText);
-                }
-            });
     connect(m_configManager, &ConfigManager::weatherCoordinatesChanged,
             m_weatherController, &weather::WeatherController::setCoordinates);
 
@@ -362,7 +347,7 @@ void Application::syncDaemonPreferences()
 {
     if (m_daemonClient && m_configManager) {
         m_daemonClient->setClipboardPaused(m_configManager->clipboardPaused());
-        m_daemonClient->setItsmEnabled(m_configManager->enableITSM());
+        m_daemonClient->setItsmEnabled(false);
         m_daemonClient->refreshClips();
     }
 }

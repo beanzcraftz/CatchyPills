@@ -12,7 +12,7 @@ Item {
     id: root
 
     property int activeTab: 0 // 0 = Clipboard, 1 = Shelf, 2 = Media, 3 = Notes, 4 = Search, 5 = Capture, 6 = ITSM
-    readonly property bool searchInputFocused: searchPaletteView.inputFocused || notesView.inputFocused
+    readonly property bool searchInputFocused: searchPaletteView.inputFocused || notesView.inputFocused || itsmView.inputFocused
     readonly property bool weatherPopupOpen: forecastPopup.opened
     readonly property bool shelfContainsDrag: fileShelfView.containsDrag
 
@@ -21,15 +21,6 @@ Item {
         function onEnableITSMChanged() {
             if (!configManager.enableITSM && root.activeTab === 6) {
                 root.activeTab = 0
-            }
-        }
-    }
-
-    Connections {
-        target: itsmController
-        function onIsHtmlReadyChanged() {
-            if (configManager.enableITSM && itsmController.isHtmlReady) {
-                root.activeTab = 6
             }
         }
     }
@@ -136,6 +127,8 @@ Item {
                                     notesView.focusInput()
                                 } else if (tabItem.index === 4) {
                                     searchPaletteView.focusInput()
+                                } else if (tabItem.index === 6) {
+                                    itsmView.focusInput()
                                 }
                             }
                         }
@@ -694,6 +687,7 @@ Item {
             ITSMView {
                 id: itsmView
                 visible: configManager.enableITSM
+                onCollapseRequested: root.collapseRequested()
             }
         }
     }
