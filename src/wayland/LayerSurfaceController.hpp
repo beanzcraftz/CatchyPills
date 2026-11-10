@@ -28,6 +28,7 @@ class LayerSurfaceController final : public QObject
     Q_PROPERTY(int pillY READ pillY NOTIFY positionChanged)
     Q_PROPERTY(int pillCanvasX READ pillCanvasX NOTIFY positionChanged)
     Q_PROPERTY(int pillCanvasY READ pillCanvasY NOTIFY positionChanged)
+    Q_PROPERTY(QString currentScreenName READ currentScreenName NOTIFY currentScreenChanged)
 
 public:
     explicit LayerSurfaceController(QQuickWindow *window = nullptr, QObject *parent = nullptr);
@@ -49,6 +50,26 @@ public:
      * QMargins(x, y, 0, 0) so the collapsed pill rests at exact screen coordinates (x, y).
      */
     Q_INVOKABLE void setAbsolutePosition(int x, int y);
+
+    /**
+     * Re-anchors the LayerShell surface to whichever QScreen contains (globalX, globalY)
+     * and adjusts left/top margins so the pill appears directly under the cursor.
+     */
+    Q_INVOKABLE bool moveToScreenUnderCursor(int globalX,
+                                               int globalY,
+                                               int anchorX = kCollapsedPillSize.width() / 2,
+                                               int anchorY = kCollapsedPillSize.height() / 2);
+
+    /**
+     * Applies a relative pointer drag delta (dx, dy) from QML MouseArea coordinates,
+     * seamlessly hopping across monitor boundaries when the cursor enters another QScreen.
+     */
+    Q_INVOKABLE void dragBy(int dx,
+                            int dy,
+                            int anchorX = kCollapsedPillSize.width() / 2,
+                            int anchorY = kCollapsedPillSize.height() / 2);
+
+    QString currentScreenName() const;
 
     /**
      * Applies live Display & Position settings (target monitor, horizontal offset,
@@ -109,10 +130,13 @@ Q_SIGNALS:
     void clickThroughChanged(bool enabled);
     void dragActiveChanged(bool active);
     void positionChanged();
+    void currentScreenChanged(const QString &screenName);
 
 private:
     QScreen *findScreenByName(const QString &monitorName) const;
+    QScreen *findAdjacentScreen(const QPoint &globalPos, QScreen *currentScreen) const;
     QScreen *resolveUltrawideScreen(QScreen *preferredScreen) const;
+    void reanchorToScreen(QScreen *targetScreen, int localPillX, int localPillY);
     void applyBlurBehind(const QRegion &region);
 
     QQuickWindow *m_window{nullptr};
@@ -121,6 +145,7 @@ private:
     bool m_clickThrough{false};
     bool m_dragActive{false};
     bool m_maskBypassed{false};
+    bool m_autoHideFullscreen{true};
     int m_surfaceX{0};
     int m_surfaceY{0};
     int m_pillX{0};

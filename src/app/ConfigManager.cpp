@@ -123,6 +123,35 @@ void ConfigManager::setAbsolutePosition(int x, int y)
     Q_EMIT positionChanged(m_posX, m_posY);
 }
 
+void ConfigManager::setMonitorAndPosition(const QString &monitorName, int x, int y)
+{
+    const int clampedX = std::max(0, x);
+    const int clampedY = std::max(0, y);
+    const bool monitorChanged = !monitorName.isEmpty() && m_targetMonitor != monitorName;
+    const bool posChanged = m_posX != clampedX || m_posY != clampedY;
+
+    if (!monitorChanged && !posChanged) {
+        return;
+    }
+
+    if (monitorChanged) {
+        m_targetMonitor = monitorName;
+        m_settings.setValue(QStringLiteral("Display/targetMonitor"), m_targetMonitor);
+    }
+    m_posX = clampedX;
+    m_posY = clampedY;
+    m_settings.setValue(QStringLiteral("Display/posX"), m_posX);
+    m_settings.setValue(QStringLiteral("Display/posY"), m_posY);
+    m_settings.sync();
+
+    if (monitorChanged) {
+        Q_EMIT targetMonitorChanged(m_targetMonitor);
+    }
+    if (posChanged) {
+        Q_EMIT positionChanged(m_posX, m_posY);
+    }
+}
+
 bool ConfigManager::clearCustomPosition()
 {
     if (m_posX < 0 && m_posY < 0) {

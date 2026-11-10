@@ -299,7 +299,7 @@ Window {
                         layerController.setKeyboardInteractive(false)
                     }
                 }
-                onDragMoved: function(dx, dy) {
+                onDragMoved: function(dx, dy, anchorX, anchorY) {
                     if (!root.hasLayer || root.dragActive || dragThrottle.running) {
                         return
                     }
@@ -310,18 +310,26 @@ Window {
                     }
                     var prevSurfX = layerController.surfaceX
                     var prevSurfY = layerController.surfaceY
-                    layerController.setAbsolutePosition(
-                        layerController.pillX + stepX,
-                        layerController.pillY + stepY
+                    var prevScreen = layerController.currentScreenName
+                    layerController.dragBy(
+                        stepX,
+                        stepY,
+                        Math.round(anchorX),
+                        Math.round(anchorY)
                     )
-                    if (layerController.surfaceX !== prevSurfX || layerController.surfaceY !== prevSurfY) {
+                    if (layerController.currentScreenName === prevScreen
+                        && (layerController.surfaceX !== prevSurfX || layerController.surfaceY !== prevSurfY)) {
                         dragThrottle.restart()
                     }
                 }
                 onDragFinished: {
                     dragThrottle.stop()
                     if (root.hasLayer) {
-                        configManager.setAbsolutePosition(layerController.pillX, layerController.pillY)
+                        configManager.setMonitorAndPosition(
+                            layerController.currentScreenName,
+                            layerController.pillX,
+                            layerController.pillY
+                        )
                     }
                 }
                 onClicked: {

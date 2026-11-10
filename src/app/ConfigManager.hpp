@@ -54,6 +54,7 @@ public:
     int posY() const noexcept { return m_posY; }
     bool hasCustomPosition() const noexcept { return m_posX >= 0 && m_posY >= 0; }
     Q_INVOKABLE void setAbsolutePosition(int x, int y);
+    Q_INVOKABLE void setMonitorAndPosition(const QString &monitorName, int x, int y);
 
     int collapseDelayMs() const noexcept { return m_collapseDelayMs; }
     void setCollapseDelayMs(int delayMs);

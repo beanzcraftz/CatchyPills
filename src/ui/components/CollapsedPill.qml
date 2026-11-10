@@ -12,7 +12,7 @@ Item {
 
     signal dragPressed()
     signal dragStarted()
-    signal dragMoved(real dx, real dy)
+    signal dragMoved(real dx, real dy, real anchorX, real anchorY)
     signal dragFinished()
     signal clicked()
 
@@ -53,7 +53,7 @@ Item {
                 dragging = true
                 root.dragStarted()
             }
-            root.dragMoved(dx, dy)
+            root.dragMoved(dx, dy, pressX, pressY)
         }
 
         onReleased: function(mouse) {

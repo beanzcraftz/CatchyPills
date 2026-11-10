@@ -77,6 +77,9 @@ void LayerSurfaceController::attachToLayerShell(QScreen *preferredScreen)
     const int screenW = targetScreen ? targetScreen->geometry().width() : 3840;
     const int centerPillX = std::max(0, (screenW - kCollapsedPillSize.width()) / 2);
     setAbsolutePosition(centerPillX, 0);
+    if (targetScreen) {
+        Q_EMIT currentScreenChanged(targetScreen->name());
+    }
 }
 
 void LayerSurfaceController::applyScreenAndLayer(
@@ -86,6 +89,8 @@ void LayerSurfaceController::applyScreenAndLayer(
     if (!m_window) {
         return;
     }
+
+    m_autoHideFullscreen = autoHideFullscreen;
 
     QScreen *targetScreen = findScreenByName(monitorName);
     if (!targetScreen) {
@@ -97,15 +102,111 @@ void LayerSurfaceController::applyScreenAndLayer(
         return;
     }
 
-    if (targetScreen) {
-        m_window->setScreen(targetScreen);
-        layerWindow->setWantsToBeOnActiveScreen(false);
-        layerWindow->setScreen(targetScreen);
-    }
-
     // In KWin Wayland, fullscreen windows sit above LayerTop and below LayerOverlay.
     layerWindow->setLayer(autoHideFullscreen ? LayerShellQt::Window::LayerTop
                                              : LayerShellQt::Window::LayerOverlay);
+
+    if (targetScreen && m_window->screen() != targetScreen) {
+        reanchorToScreen(targetScreen, m_pillX, m_pillY);
+    }
+}
+
+QString LayerSurfaceController::currentScreenName() const
+{
+    QScreen *screen = m_window ? m_window->screen() : nullptr;
+    if (!screen) {
+        screen = resolveUltrawideScreen(nullptr);
+    }
+    return screen ? screen->name() : QString();
+}
+
+bool LayerSurfaceController::moveToScreenUnderCursor(int globalX, int globalY, int anchorX, int anchorY)
+{
+    if (!m_window) {
+        return false;
+    }
+
+    QScreen *currentScreen = m_window->screen();
+    if (!currentScreen) {
+        currentScreen = resolveUltrawideScreen(nullptr);
+    }
+
+    QScreen *targetScreen = findAdjacentScreen(QPoint(globalX, globalY), currentScreen);
+    if (!targetScreen || targetScreen == currentScreen) {
+        return false;
+    }
+
+    const QRect targetGeo = targetScreen->geometry();
+    const int localPillX = globalX - targetGeo.x() - anchorX;
+    const int localPillY = globalY - targetGeo.y() - anchorY;
+
+    reanchorToScreen(targetScreen, localPillX, localPillY);
+    return true;
+}
+
+void LayerSurfaceController::dragBy(int dx, int dy, int anchorX, int anchorY)
+{
+    if (!m_window) {
+        return;
+    }
+
+    QScreen *currentScreen = m_window->screen();
+    if (!currentScreen) {
+        currentScreen = resolveUltrawideScreen(nullptr);
+    }
+
+    const QRect curGeo = currentScreen ? currentScreen->geometry() : QRect(0, 0, 3840, 1080);
+    const int candidateX = m_pillX + dx;
+    const int candidateY = m_pillY + dy;
+
+    const int globalCursorX = curGeo.x() + candidateX + anchorX;
+    const int globalCursorY = curGeo.y() + candidateY + anchorY;
+
+    if (!curGeo.contains(QPoint(globalCursorX, globalCursorY))) {
+        if (moveToScreenUnderCursor(globalCursorX, globalCursorY, anchorX, anchorY)) {
+            return;
+        }
+    }
+
+    setAbsolutePosition(candidateX, candidateY);
+}
+
+void LayerSurfaceController::reanchorToScreen(QScreen *targetScreen, int localPillX, int localPillY)
+{
+    if (!m_window || !targetScreen) {
+        return;
+    }
+
+    auto *layerWindow = LayerShellQt::Window::get(m_window);
+    if (!layerWindow) {
+        return;
+    }
+
+    const bool wasVisible = m_window->isVisible();
+    if (wasVisible) {
+        // zwlr_layer_shell_v1 binds wl_output only on layer surface creation, so
+        // recreating the platform surface moves the island cleanly to targetScreen.
+        m_window->hide();
+    }
+
+    m_window->setScreen(targetScreen);
+    layerWindow->setWantsToBeOnActiveScreen(false);
+    layerWindow->setScreen(targetScreen);
+    layerWindow->setLayer(m_autoHideFullscreen ? LayerShellQt::Window::LayerTop
+                                               : LayerShellQt::Window::LayerOverlay);
+    layerWindow->setExclusiveZone(0);
+    layerWindow->setDesiredSize(kDefaultCanvasSize);
+    layerWindow->setKeyboardInteractivity(LayerShellQt::Window::KeyboardInteractivityNone);
+    layerWindow->setActivateOnShow(false);
+    layerWindow->setScope(QStringLiteral("catchypills-island"));
+
+    setAbsolutePosition(localPillX, localPillY);
+
+    if (wasVisible) {
+        m_window->show();
+    }
+
+    Q_EMIT currentScreenChanged(targetScreen->name());
 }
 
 void LayerSurfaceController::setAbsolutePosition(int x, int y)
@@ -425,6 +526,39 @@ QScreen *LayerSurfaceController::findScreenByName(const QString &monitorName) co
             return screen;
         }
     }
+    return nullptr;
+}
+
+QScreen *LayerSurfaceController::findAdjacentScreen(
+    const QPoint &globalPos,
+    QScreen *currentScreen) const
+{
+    for (QScreen *screen : QGuiApplication::screens()) {
+        if (screen && screen->geometry().contains(globalPos)) {
+            return screen;
+        }
+    }
+
+    // Handle edge-overhang crossings between monitors with mismatched heights/widths
+    // (e.g., dragging near y=18 from a taller 1440p monitor into an offset 1080p monitor).
+    if (!currentScreen) {
+        return nullptr;
+    }
+    const QRect curGeo = currentScreen->geometry();
+    for (QScreen *screen : QGuiApplication::screens()) {
+        if (!screen || screen == currentScreen) {
+            continue;
+        }
+        const QRect g = screen->geometry();
+        const bool crossedX = (globalPos.x() < curGeo.left() || globalPos.x() > curGeo.right())
+                              && globalPos.x() >= g.left() && globalPos.x() <= g.right();
+        const bool crossedY = (globalPos.y() < curGeo.top() || globalPos.y() > curGeo.bottom())
+                              && globalPos.y() >= g.top() && globalPos.y() <= g.bottom();
+        if (crossedX || crossedY) {
+            return screen;
+        }
+    }
+
     return nullptr;
 }
 
