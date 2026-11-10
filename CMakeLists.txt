@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.24)
 
 project(CatchyPills
-    VERSION 0.1.0
+    VERSION 1.1.0
     DESCRIPTION "Dynamic floating island, clipboard/search hub, and Wayland capture suite for KDE Plasma 6"
     LANGUAGES CXX
 )

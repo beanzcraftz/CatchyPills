@@ -4,7 +4,7 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$REPO_ROOT"
 
-VERSION="v1.0"
+VERSION="v1.1"
 PKG_NAME="catchypills-${VERSION}"
 STAGE_DIR="$REPO_ROOT/dist/${PKG_NAME}"
 TARBALL_PATH="$REPO_ROOT/dist/catchypills-${VERSION}-cachyos-x86_64.tar.gz"

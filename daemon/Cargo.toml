@@ -1,6 +1,6 @@
 [package]
 name = "catchypillsd"
-version = "0.1.0"
+version = "1.1.0"
 edition = "2024"
 description = "Background clipboard watcher and Everything-speed file indexer daemon for CatchyPills"
 license = "GPL-3.0-or-later"

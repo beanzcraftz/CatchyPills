@@ -1,6 +1,6 @@
 # Maintainer: HearneLabs <contact@hearnelabs.com>
 pkgname=catchypills
-pkgver=0.1.0
+pkgver=1.1.0
 pkgrel=1
 pkgdesc="Native Wayland Dynamic Island, clipboard/search daemon, and screen capture suite for KDE Plasma 6"
 arch=('x86_64')

@@ -40,8 +40,9 @@ Built specifically for ultrawide displays (`3840×1080`) and multi-monitor setup
 - Controls any MPRIS2-compatible player (Spotify, VLC, browsers, etc.) directly from the **Media** tab.
 - Displays album art, metadata, responsive Play/Pause/Prev/Next transport buttons, an animated 4-bar equalizer, and switchable **CachyCyberWave** (`#00E5A3`) and **NativePlasmaBreeze** (`#38BDF8`) themes.
 
-### Quick Notes (SQLite Scratchpad)
-- Type tasks or snippets cleanly inside the **Notes** tab and press `Enter` to persist them locally in SQLite with completion checkboxes and one-click delete.
+### Quick Notes & Alarms (SQLite)
+- Type tasks or snippets inside the **Notes** tab with optional quick alarm chips (**`None`**, **`+15m`**, **`+30m`**, **`+1h`**, **`+2h`**) or custom **`HH:MM`** reminder time, persisted locally in SQLite WAL storage.
+- Due reminders pulse the collapsed pill border amber/emerald showing `⏰ [Note Text]`, chime via `paplay`/`canberra-gtk-play`, fire critical `notify-send` alerts, and support **`+10m` snooze** or one-click dismiss/delete.
 
 ### Unified Search (Local Fuzzy + Web)
 - Segmented mode switch cleanly separates:
@@ -54,9 +55,9 @@ Built specifically for ultrawide displays (`3840×1080`) and multi-monitor setup
 - **Region MP4 Recording (`KPipeWire` + `ffmpeg`):** Captures the chosen region to `/tmp/catchypills_raw_screencast.mp4`, releases the LayerShell overlay cleanly on **Stop Recording**, opens a non-blocking **Save As** dialog (`org.freedesktop.portal.FileChooser::SaveFile` with `QFileDialog::open()` fallback) defaulting to `~/Videos/screencast_yyyyMMdd_HHmmss.mp4`, runs `ffmpeg` region cropping, cleans up `/tmp/`, and notifies via `notify-send` with the exact destination folder.
 - **Pick Screen Color (HEX):** Uses `org.freedesktop.portal.Screenshot::PickColor` to sample any pixel on screen, copies uppercase `#RRGGBB` to your Wayland clipboard, and confirms via desktop notification.
 
-### System Monitor Sparkline & Cached Weather Widget
+### System Monitor Sparkline & 7-Day Weather Widget
 - **Collapsed Pill SysMon:** Polls `/proc/stat` and `/proc/meminfo` every `2000 ms`, keeping a rolling 20-sample CPU history drawn as a `#00E5A3` neon-emerald sparkline + compact monospace CPU/RAM readout (with `CPU: XX% | RAM: XX%` hover tooltip).
-- **Header Weather Pill:** Queries Open-Meteo (`current_weather=true`) over `Qt6::Network` and caches responses for 30 minutes (`QTimer`), mapping WMO codes to condition icons (`☀️`, `⛅`, `🌧️`, `⛈️`) with a hover tooltip showing full conditions, wind speed, and last update timestamp.
+- **Header Weather Pill & 7-Day Forecast:** Queries Open-Meteo (`current_weather=true` + 7-day `daily` forecast) over `Qt6::Network` using configurable Latitude/Longitude from Settings (caching results for 30 minutes). Hovering reveals live conditions and last update time; clicking opens a glassmorphic 7-day forecast popup (`[Day] [Icon] [Min°] - [Max°]`).
 
 ---
 
@@ -98,13 +99,13 @@ cd CatchyPills
 3. Installs `/usr/bin/catchypills`, `/usr/bin/catchypillsd`, desktop entries (`io.hearnelabs.CatchyPills.desktop`), XDG autostart, and `catchypillsd.service`.
 4. Enables `catchypillsd.service` with `systemctl --user enable --now` and launches CatchyPills immediately.
 
-### Option 2: Installing a Prebuilt Release 1.0 Bundle
+### Option 2: Installing a Prebuilt Release 1.1 Bundle
 
-If installing from a packaged `catchypills-v1.0-cachyos-x86_64.tar.gz` release archive:
+If installing from a packaged `catchypills-v1.1-cachyos-x86_64.tar.gz` release archive:
 
 ```bash
-tar -xzf catchypills-v1.0-cachyos-x86_64.tar.gz
-cd catchypills-v1.0
+tar -xzf catchypills-v1.1-cachyos-x86_64.tar.gz
+cd catchypills-v1.1
 ./install.sh
 ```
 
@@ -112,7 +113,7 @@ cd catchypills-v1.0
 
 ## Packaging a Distribution Release
 
-To compile Release targets and bundle everything into `dist/catchypills-v1.0-cachyos-x86_64.tar.gz`:
+To compile Release targets and bundle everything into `dist/catchypills-v1.1-cachyos-x86_64.tar.gz`:
 
 ```bash
 ./package_release.sh

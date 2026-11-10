@@ -70,7 +70,7 @@ if [[ -f "CMakeLists.txt" ]]; then
     sudo install -Dm644 "packaging/catchypillsd.service" "/usr/lib/systemd/user/catchypillsd.service"
     DESKTOP_SRC="packaging/io.hearnelabs.CatchyPills.desktop"
 else
-    echo "==> Installing prebuilt CatchyPills v1.0 release binaries..."
+    echo "==> Installing prebuilt CatchyPills v1.1 release binaries..."
     sudo install -Dm755 "catchypills" "/usr/bin/catchypills"
     sudo install -Dm755 "catchypillsd" "/usr/bin/catchypillsd"
     sudo install -Dm644 "io.hearnelabs.CatchyPills.desktop" \
