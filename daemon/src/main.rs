@@ -60,6 +60,7 @@ struct DaemonIpc {
     db: Arc<Mutex<Connection>>,
     file_index: Arc<RwLock<Vec<IndexedFile>>>,
     indexed_count: Arc<AtomicUsize>,
+    clipboard_paused: Arc<AtomicBool>,
 }
 
 #[interface(name = "io.hearnelabs.CatchyPillsDaemon1")]
@@ -69,6 +70,15 @@ impl DaemonIpc {
             "catchypillsd alive (indexed_files={})",
             self.indexed_count.load(Ordering::Relaxed)
         )
+    }
+
+    async fn set_clipboard_paused(&self, paused: bool) -> bool {
+        self.clipboard_paused.store(paused, Ordering::Relaxed);
+        paused
+    }
+
+    async fn is_clipboard_paused(&self) -> bool {
+        self.clipboard_paused.load(Ordering::Relaxed)
     }
 
     async fn get_recent_clips(&self, limit: u32) -> Vec<ClipboardEntryDto> {
@@ -272,6 +282,7 @@ struct ClipboardWaylandState {
     clips_dir: PathBuf,
     dbus_conn: zbus::Connection,
     tokio_rt: tokio::runtime::Handle,
+    clipboard_paused: Arc<AtomicBool>,
 }
 
 impl ClipboardWaylandState {
@@ -303,6 +314,11 @@ impl ClipboardWaylandState {
 
     fn handle_selection(&mut self, wl_conn: &WaylandConnection, offer: ExtDataControlOfferV1) {
         let mimes = self.offers.remove(&offer.id()).unwrap_or_default();
+
+        if self.clipboard_paused.load(Ordering::Relaxed) {
+            offer.destroy();
+            return;
+        }
 
         // Respect KDE/KeePassXC/KWallet privacy convention: skip clipboard offers
         // carrying x-kde-passwordManagerHint with payload "secret".
@@ -456,6 +472,7 @@ fn spawn_clipboard_worker(
     clips_dir: PathBuf,
     dbus_conn: zbus::Connection,
     tokio_rt: tokio::runtime::Handle,
+    clipboard_paused: Arc<AtomicBool>,
     shutdown: Arc<AtomicBool>,
 ) -> std::thread::JoinHandle<()> {
     std::thread::Builder::new()
@@ -477,6 +494,7 @@ fn spawn_clipboard_worker(
                 clips_dir,
                 dbus_conn,
                 tokio_rt,
+                clipboard_paused,
             };
 
             let _registry = wl_conn.display().get_registry(&qh, ());
@@ -618,12 +636,14 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let db = Arc::new(Mutex::new(conn));
     let file_index = Arc::new(RwLock::new(Vec::new()));
     let indexed_count = Arc::new(AtomicUsize::new(0));
+    let clipboard_paused = Arc::new(AtomicBool::new(false));
     let shutdown = Arc::new(AtomicBool::new(false));
 
     let ipc = DaemonIpc {
         db: Arc::clone(&db),
         file_index: Arc::clone(&file_index),
         indexed_count: Arc::clone(&indexed_count),
+        clipboard_paused: Arc::clone(&clipboard_paused),
     };
 
     let dbus_conn = connection::Builder::session()?
@@ -639,6 +659,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         clips_dir,
         dbus_conn,
         tokio::runtime::Handle::current(),
+        clipboard_paused,
         Arc::clone(&shutdown),
     );
     let indexer_task =

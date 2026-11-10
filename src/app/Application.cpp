@@ -1,9 +1,11 @@
 #include "Application.hpp"
 
+#include "ConfigManager.hpp"
 #include "core/DaemonClient.hpp"
 #include "modules/capture/CaptureCoordinator.hpp"
 #include "wayland/LayerSurfaceController.hpp"
 
+#include <QAction>
 #include <QCoreApplication>
 #include <QDBusConnection>
 #include <QDBusMessage>
@@ -11,27 +13,82 @@
 #include <QDBusPendingCallWatcher>
 #include <QDBusPendingReply>
 #include <QDBusServiceWatcher>
+#include <QIcon>
+#include <QMenu>
+#include <QPainter>
+#include <QPixmap>
 #include <QQmlApplicationEngine>
+#include <QQmlComponent>
 #include <QQmlContext>
 #include <QQuickWindow>
+#include <QSystemTrayIcon>
 #include <QTimer>
 
 namespace catchypills::app {
+
+namespace {
+QIcon makePillTrayIcon()
+{
+    QIcon themed = QIcon::fromTheme(QStringLiteral("catchypills"));
+    if (!themed.isNull()) {
+        return themed;
+    }
+
+    QPixmap pm(64, 64);
+    pm.fill(Qt::transparent);
+    QPainter p(&pm);
+    p.setRenderHint(QPainter::Antialiasing, true);
+    p.setPen(QPen(QColor(QStringLiteral("#38bdf8")), 3));
+    p.setBrush(QColor(QStringLiteral("#0f172a")));
+    p.drawRoundedRect(6, 20, 52, 24, 12, 12);
+    p.setPen(Qt::NoPen);
+    p.setBrush(QColor(QStringLiteral("#38bdf8")));
+    p.drawEllipse(16, 27, 10, 10);
+    return QIcon(pm);
+}
+} // namespace
 
 Application::Application(QObject *parent)
     : QObject(parent)
 {
 }
 
+Application::~Application()
+{
+    delete m_settingsWindow;
+    delete m_trayMenu;
+}
+
 bool Application::initialize()
 {
+    m_configManager = new ConfigManager(this);
     m_imageProvider = new capture::CaptureImageProvider();
     m_daemonClient = new core::DaemonClient(this);
     m_captureCoordinator = new capture::CaptureCoordinator(m_imageProvider, this);
     m_engine = new QQmlApplicationEngine(this);
 
+    m_captureCoordinator->setOutputDirectory(m_configManager->screenshotsDir());
+    m_captureCoordinator->setAutoCopyEnabled(m_configManager->autoCopyCapture());
+
+    connect(m_configManager, &ConfigManager::screenshotsDirChanged,
+            m_captureCoordinator, &capture::CaptureCoordinator::setOutputDirectory);
+    connect(m_configManager, &ConfigManager::autoCopyCaptureChanged,
+            m_captureCoordinator, &capture::CaptureCoordinator::setAutoCopyEnabled);
+    connect(m_configManager, &ConfigManager::clipboardPausedChanged,
+            m_daemonClient, &core::DaemonClient::setClipboardPaused);
+
+    connect(m_configManager, &ConfigManager::targetMonitorChanged,
+            this, &Application::applyDisplaySettings);
+    connect(m_configManager, &ConfigManager::horizontalOffsetChanged,
+            this, &Application::applyDisplaySettings);
+    connect(m_configManager, &ConfigManager::topMarginChanged,
+            this, &Application::applyDisplaySettings);
+    connect(m_configManager, &ConfigManager::autoHideFullscreenChanged,
+            this, &Application::applyDisplaySettings);
+
     m_engine->addImageProvider(QStringLiteral("capture"), m_imageProvider);
     m_engine->rootContext()->setContextProperty(QStringLiteral("appController"), this);
+    m_engine->rootContext()->setContextProperty(QStringLiteral("configManager"), m_configManager);
     m_engine->rootContext()->setContextProperty(QStringLiteral("daemonClient"), m_daemonClient);
     m_engine->rootContext()->setContextProperty(QStringLiteral("captureCoordinator"), m_captureCoordinator);
 
@@ -50,12 +107,12 @@ bool Application::initialize()
         return false;
     }
 
-    auto *islandWindow = qobject_cast<QQuickWindow *>(m_engine->rootObjects().constFirst());
-    if (!islandWindow) {
+    m_islandWindow = qobject_cast<QQuickWindow *>(m_engine->rootObjects().constFirst());
+    if (!m_islandWindow) {
         return false;
     }
 
-    m_islandLayer = new wayland::LayerSurfaceController(islandWindow, islandWindow);
+    m_islandLayer = new wayland::LayerSurfaceController(m_islandWindow, m_islandWindow);
     m_engine->rootContext()->setContextProperty(QStringLiteral("layerController"), m_islandLayer);
 
     // 2. Preload fullscreen 3840x1080 CaptureOverlay on LayerOverlay.
@@ -75,10 +132,12 @@ bool Application::initialize()
         }
     }
 
-    // Bind zwlr_layer_shell_v1 before mapping the Wayland island surface.
+    // Bind zwlr_layer_shell_v1 and saved ultrawide placement before mapping the surface.
     m_islandLayer->attachToLayerShell();
-    islandWindow->show();
+    applyDisplaySettings();
+    m_islandWindow->show();
 
+    setupTrayIcon();
     probeDaemonAsync();
     return true;
 }
@@ -88,6 +147,98 @@ QString Application::daemonStatusText() const
     return m_daemonOnline
         ? QStringLiteral("Daemon connected")
         : QStringLiteral("Daemon offline — reconnecting...");
+}
+
+void Application::openSettings()
+{
+    if (!m_engine) {
+        return;
+    }
+
+    if (!m_settingsWindow) {
+        QQmlComponent component(m_engine, QStringLiteral("CatchyPills"), QStringLiteral("SettingsWindow"));
+        if (component.isError()) {
+            qWarning("Failed to load SettingsWindow: %s", qPrintable(component.errorString()));
+            return;
+        }
+        m_settingsWindow = qobject_cast<QQuickWindow *>(component.create(m_engine->rootContext()));
+        if (!m_settingsWindow) {
+            return;
+        }
+    }
+
+    m_settingsWindow->show();
+    m_settingsWindow->raise();
+    m_settingsWindow->requestActivate();
+}
+
+void Application::toggleIslandVisible()
+{
+    if (!m_islandWindow) {
+        return;
+    }
+    if (m_islandWindow->isVisible()) {
+        m_islandWindow->hide();
+    } else {
+        m_islandWindow->show();
+        m_islandWindow->raise();
+    }
+}
+
+void Application::applyDisplaySettings()
+{
+    if (!m_islandLayer || !m_configManager) {
+        return;
+    }
+    m_islandLayer->applyDisplayPreferences(
+        m_configManager->targetMonitor(),
+        m_configManager->horizontalOffset(),
+        m_configManager->topMargin(),
+        m_configManager->autoHideFullscreen());
+}
+
+void Application::setupTrayIcon()
+{
+    if (!QSystemTrayIcon::isSystemTrayAvailable()) {
+        return;
+    }
+
+    m_trayMenu = new QMenu();
+    auto *toggleAction = m_trayMenu->addAction(QStringLiteral("Show / Hide Island"));
+    connect(toggleAction, &QAction::triggered, this, &Application::toggleIslandVisible);
+
+    auto *snipAction = m_trayMenu->addAction(QStringLiteral("Region Snip (Annotate)"));
+    connect(snipAction, &QAction::triggered, m_captureCoordinator, [this]() {
+        m_captureCoordinator->prepareRegionCapture(false);
+    });
+
+    m_trayMenu->addSeparator();
+
+    m_pauseClipboardAction = m_trayMenu->addAction(QStringLiteral("Pause Clipboard Capture"));
+    m_pauseClipboardAction->setCheckable(true);
+    m_pauseClipboardAction->setChecked(m_configManager->clipboardPaused());
+    connect(m_pauseClipboardAction, &QAction::toggled,
+            m_configManager, &ConfigManager::setClipboardPaused);
+    connect(m_configManager, &ConfigManager::clipboardPausedChanged,
+            m_pauseClipboardAction, &QAction::setChecked);
+
+    auto *settingsAction = m_trayMenu->addAction(QStringLiteral("Settings..."));
+    connect(settingsAction, &QAction::triggered, this, &Application::openSettings);
+
+    m_trayMenu->addSeparator();
+
+    auto *quitAction = m_trayMenu->addAction(QStringLiteral("Quit CatchyPills"));
+    connect(quitAction, &QAction::triggered, qApp, &QCoreApplication::quit);
+
+    m_trayIcon = new QSystemTrayIcon(makePillTrayIcon(), this);
+    m_trayIcon->setToolTip(QStringLiteral("CatchyPills — Dynamic Island & Capture Suite"));
+    m_trayIcon->setContextMenu(m_trayMenu);
+    connect(m_trayIcon, &QSystemTrayIcon::activated, this, [this](QSystemTrayIcon::ActivationReason reason) {
+        if (reason == QSystemTrayIcon::Trigger) {
+            toggleIslandVisible();
+        }
+    });
+    m_trayIcon->show();
 }
 
 void Application::setupDaemonWatcher()
@@ -110,6 +261,14 @@ void Application::setupDaemonWatcher()
     connect(m_reconnectTimer, &QTimer::timeout, this, &Application::probeDaemonAsync);
 }
 
+void Application::syncDaemonPreferences()
+{
+    if (m_daemonClient && m_configManager) {
+        m_daemonClient->setClipboardPaused(m_configManager->clipboardPaused());
+        m_daemonClient->refreshClips();
+    }
+}
+
 void Application::onDaemonRegistered(const QString &serviceName)
 {
     Q_UNUSED(serviceName)
@@ -118,9 +277,7 @@ void Application::onDaemonRegistered(const QString &serviceName)
         m_reconnectTimer->stop();
     }
     setDaemonOnline(true);
-    if (m_daemonClient) {
-        m_daemonClient->refreshClips();
-    }
+    syncDaemonPreferences();
 }
 
 void Application::onDaemonUnregistered(const QString &serviceName)
@@ -152,8 +309,8 @@ void Application::probeDaemonAsync()
             const bool wasOffline = !m_daemonOnline;
             m_probeIntervalMs = 3000;
             setDaemonOnline(true);
-            if (wasOffline && m_daemonClient) {
-                m_daemonClient->refreshClips();
+            if (wasOffline) {
+                syncDaemonPreferences();
             }
             return;
         }

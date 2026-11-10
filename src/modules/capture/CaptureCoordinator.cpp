@@ -257,23 +257,29 @@ void CaptureCoordinator::handleCapturedImage(QImage image)
         return;
     }
 
-    // Automatically publish the capture to the Wayland clipboard with image/png MIME data
-    // so both catchypillsd (ext_data_control_v1) and paste targets receive it immediately.
-    if (QClipboard *clipboard = QGuiApplication::clipboard()) {
-        QByteArray pngBytes;
-        QBuffer buffer(&pngBytes);
-        buffer.open(QIODevice::WriteOnly);
-        image.save(&buffer, "PNG");
+    // Automatically publish the capture to the Wayland clipboard when enabled so
+    // both catchypillsd (ext_data_control_v1) and paste targets receive it immediately.
+    if (m_autoCopyEnabled) {
+        if (QClipboard *clipboard = QGuiApplication::clipboard()) {
+            QByteArray pngBytes;
+            QBuffer buffer(&pngBytes);
+            buffer.open(QIODevice::WriteOnly);
+            image.save(&buffer, "PNG");
 
-        auto *mime = new QMimeData();
-        mime->setImageData(image);
-        mime->setData(QStringLiteral("image/png"), pngBytes);
-        clipboard->setMimeData(mime);
+            auto *mime = new QMimeData();
+            mime->setImageData(image);
+            mime->setData(QStringLiteral("image/png"), pngBytes);
+            clipboard->setMimeData(mime);
+        }
     }
 
-    setStatus(QStringLiteral("Saved & copied %1x%2")
-                  .arg(image.width())
-                  .arg(image.height()));
+    setStatus(m_autoCopyEnabled
+                  ? QStringLiteral("Saved & copied %1x%2")
+                        .arg(image.width())
+                        .arg(image.height())
+                  : QStringLiteral("Saved %1x%2")
+                        .arg(image.width())
+                        .arg(image.height()));
     Q_EMIT screenshotCaptured(outPath, image.size());
 }
 
@@ -500,11 +506,17 @@ void CaptureCoordinator::setStatus(const QString &status)
     }
 }
 
+void CaptureCoordinator::setOutputDirectory(const QString &directory)
+{
+    m_outputDirectory = directory.trimmed();
+}
+
 QString CaptureCoordinator::buildOutputPath(const QString &extension) const
 {
-    const QString baseDir =
-        QStandardPaths::writableLocation(QStandardPaths::PicturesLocation)
-        + QStringLiteral("/CatchyPills");
+    const QString baseDir = m_outputDirectory.isEmpty()
+        ? (QStandardPaths::writableLocation(QStandardPaths::PicturesLocation)
+           + QStringLiteral("/Screenshots"))
+        : m_outputDirectory;
     QDir().mkpath(baseDir);
     const QString stamp = QDateTime::currentDateTime().toString(QStringLiteral("yyyyMMdd_HHmmss"));
     return QStringLiteral("%1/CatchyPills_%2.%3").arg(baseDir, stamp, extension);

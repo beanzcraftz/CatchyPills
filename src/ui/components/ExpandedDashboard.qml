@@ -19,6 +19,22 @@ Item {
         id: shelfModel
     }
 
+    // Periodically expires unpinned File Shelf items per ConfigManager::shelfRetentionHours.
+    Timer {
+        interval: 60000
+        repeat: true
+        running: configManager.shelfRetentionHours > 0
+        onTriggered: {
+            var cutoff = Date.now() - (configManager.shelfRetentionHours * 3600 * 1000)
+            for (var i = shelfModel.count - 1; i >= 0; --i) {
+                var item = shelfModel.get(i)
+                if (item.addedAt && item.addedAt < cutoff) {
+                    shelfModel.remove(i)
+                }
+            }
+        }
+    }
+
     function focusSearch() {
         activeTab = 2
         searchInput.forceActiveFocus()
@@ -90,8 +106,32 @@ Item {
                 color: "#94a3b8"
                 font.pixelSize: 11
                 elide: Text.ElideRight
-                Layout.maximumWidth: 180
+                Layout.maximumWidth: 160
                 text: captureCoordinator.lastStatus
+            }
+
+            Rectangle {
+                width: 30
+                height: 30
+                radius: 15
+                color: gearHover.hovered ? Qt.rgba(1, 1, 1, 0.14) : Qt.rgba(1, 1, 1, 0.06)
+                border.width: 1
+                border.color: Qt.rgba(1, 1, 1, 0.12)
+
+                HoverHandler { id: gearHover }
+
+                Label {
+                    anchors.centerIn: parent
+                    color: "#e2e8f0"
+                    font.pixelSize: 14
+                    text: "⚙"
+                }
+
+                MouseArea {
+                    anchors.fill: parent
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: appController.openSettings()
+                }
             }
         }
 
@@ -195,7 +235,8 @@ Item {
                                     shelfModel.append({
                                         name: parts[parts.length - 1] || urlStr,
                                         uri: urlStr,
-                                        kind: "FILE"
+                                        kind: "FILE",
+                                        addedAt: Date.now()
                                     })
                                 }
                                 drop.acceptProposedAction()
@@ -203,7 +244,8 @@ Item {
                                 shelfModel.append({
                                     name: drop.text.trim().slice(0, 64),
                                     uri: drop.text,
-                                    kind: "TEXT"
+                                    kind: "TEXT",
+                                    addedAt: Date.now()
                                 })
                                 drop.acceptProposedAction()
                             }

@@ -60,6 +60,9 @@ public:
     QString lastStatus() const { return m_lastStatus; }
     int backdropRevision() const noexcept { return m_backdropRevision; }
 
+    void setOutputDirectory(const QString &directory);
+    void setAutoCopyEnabled(bool enabled) noexcept { m_autoCopyEnabled = enabled; }
+
     Q_INVOKABLE void captureWorkspace(bool includeCursor = false);
     Q_INVOKABLE void captureArea(int x, int y, int width, int height, bool includeCursor = false);
 
@@ -122,9 +125,11 @@ private:
     QVariantList m_pendingAnnotations;
     QString m_portalSessionHandle;
     QString m_activeOutputPath;
+    QString m_outputDirectory;
     QString m_lastStatus;
     int m_backdropRevision{0};
     bool m_recording{false};
+    bool m_autoCopyEnabled{true};
 };
 
 } // namespace catchypills::capture

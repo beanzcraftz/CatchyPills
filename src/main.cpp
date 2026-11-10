@@ -1,10 +1,12 @@
 #include "app/Application.hpp"
 
-#include <QGuiApplication>
+#include <QApplication>
 
 int main(int argc, char *argv[])
 {
-    QGuiApplication app(argc, argv);
+    // QApplication (QtWidgets) is required for native QSystemTrayIcon / KStatusNotifierItem.
+    QApplication app(argc, argv);
+    app.setQuitOnLastWindowClosed(false);
     app.setApplicationName(QStringLiteral("catchypills"));
     app.setApplicationDisplayName(QStringLiteral("CatchyPills"));
     app.setOrganizationName(QStringLiteral("HearneLabs"));

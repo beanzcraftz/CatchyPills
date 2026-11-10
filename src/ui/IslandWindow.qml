@@ -81,7 +81,7 @@ Window {
 
         Timer {
             id: collapseDelay
-            interval: 220
+            interval: configManager.collapseDelayMs
             onTriggered: {
                 if (!islandHover.hovered && !dashboard.searchInputFocused) {
                     pillContainer.state = "collapsed"

@@ -12,7 +12,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 include(GNUInstallDirs)
 
-# Core Qt6 modules: Widgets is included as required transitively by KF6::GlobalAccel.
+# Core Qt6 modules: Widgets is required by QSystemTrayIcon and KF6::GlobalAccel.
 find_package(Qt6 REQUIRED COMPONENTS
     Core
     Gui
@@ -35,6 +35,8 @@ qt_add_executable(catchypills
     src/main.cpp
     src/app/Application.hpp
     src/app/Application.cpp
+    src/app/ConfigManager.hpp
+    src/app/ConfigManager.cpp
     src/core/DaemonClient.hpp
     src/core/DaemonClient.cpp
     src/modules/capture/CaptureCoordinator.hpp
@@ -52,6 +54,7 @@ qt_add_qml_module(catchypills
         src/ui/components/ExpandedDashboard.qml
         src/ui/capture/CaptureOverlay.qml
         src/ui/capture/AnnotationCanvas.qml
+        src/ui/settings/SettingsWindow.qml
 )
 
 # Note exact imported target names on KDE Plasma 6 / CachyOS:

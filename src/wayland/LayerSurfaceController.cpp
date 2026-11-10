@@ -9,6 +9,8 @@
 #include <QQuickWindow>
 #include <QScreen>
 
+#include <algorithm>
+
 namespace catchypills::wayland {
 
 LayerSurfaceController::LayerSurfaceController(QQuickWindow *window, QObject *parent)
@@ -48,24 +50,74 @@ void LayerSurfaceController::attachToLayerShell(QScreen *preferredScreen)
         layerWindow->setScreen(targetScreen);
     }
 
-    // LayerOverlay keeps the Dynamic Island above normal windows and docks.
-    layerWindow->setLayer(LayerShellQt::Window::LayerOverlay);
+    // LayerTop sits above normal windows & panels while allowing fullscreen apps/games
+    // to render above the island cleanly on KWin (auto-hide on fullscreen).
+    layerWindow->setLayer(LayerShellQt::Window::LayerTop);
 
-    // Anchor ONLY to AnchorTop so KWin centers the surface horizontally on the
-    // 3840px wide monitor instead of stretching it across AnchorLeft | AnchorRight.
-    layerWindow->setAnchors(LayerShellQt::Window::AnchorTop);
+    // Anchor Top | Left so horizontal offset margins shift smoothly pixel-by-pixel
+    // across the 3840px wide ultrawide monitor without compositor jumps.
+    const auto anchors = LayerShellQt::Window::Anchors(LayerShellQt::Window::AnchorTop)
+                         | LayerShellQt::Window::AnchorLeft;
+    layerWindow->setAnchors(anchors);
 
     // ExclusiveZone = 0 does not shrink maximized windows' usable work area.
-    // With Plasma's panel positioned at the bottom of the 3840x1080 display,
-    // the top edge is unobstructed and zero margins pin the island flush to y=0.
     layerWindow->setExclusiveZone(0);
-    layerWindow->setMargins(QMargins(0, 0, 0, 0));
+    const int screenW = targetScreen ? targetScreen->geometry().width() : 3840;
+    const int centerLeft = std::max(0, (screenW - kDefaultCanvasSize.width()) / 2);
+    layerWindow->setMargins(QMargins(centerLeft, 0, 0, 0));
     layerWindow->setDesiredSize(kDefaultCanvasSize);
 
     // Never steal keyboard focus on startup or during ambient HUD updates.
     layerWindow->setKeyboardInteractivity(LayerShellQt::Window::KeyboardInteractivityNone);
     layerWindow->setActivateOnShow(false);
     layerWindow->setScope(QStringLiteral("catchypills-island"));
+}
+
+void LayerSurfaceController::applyDisplayPreferences(
+    const QString &monitorName,
+    int horizontalOffset,
+    int topMargin,
+    bool autoHideFullscreen)
+{
+    if (!m_window) {
+        return;
+    }
+
+    QScreen *targetScreen = findScreenByName(monitorName);
+    if (!targetScreen) {
+        targetScreen = resolveUltrawideScreen(nullptr);
+    }
+
+    auto *layerWindow = LayerShellQt::Window::get(m_window);
+    if (!layerWindow) {
+        return;
+    }
+
+    if (targetScreen) {
+        m_window->setScreen(targetScreen);
+        layerWindow->setWantsToBeOnActiveScreen(false);
+        layerWindow->setScreen(targetScreen);
+    }
+
+    // In KWin Wayland, fullscreen windows sit above LayerTop and below LayerOverlay.
+    layerWindow->setLayer(autoHideFullscreen ? LayerShellQt::Window::LayerTop
+                                             : LayerShellQt::Window::LayerOverlay);
+
+    const int screenW = targetScreen ? targetScreen->geometry().width() : 3840;
+    const int maxLeft = std::max(0, screenW - kDefaultCanvasSize.width());
+    const int centerLeft = (screenW - kDefaultCanvasSize.width()) / 2;
+    const int clampedLeft = std::clamp(centerLeft + horizontalOffset, 0, maxLeft);
+    const int clampedTop = std::clamp(topMargin, 0, 64);
+
+    const auto anchors = LayerShellQt::Window::Anchors(LayerShellQt::Window::AnchorTop)
+                         | LayerShellQt::Window::AnchorLeft;
+    layerWindow->setAnchors(anchors);
+    layerWindow->setMargins(QMargins(clampedLeft, clampedTop, 0, 0));
+
+    // Re-sync blur region if window is already mapped.
+    if (m_window->isVisible() && !m_clickThrough && m_lastPillRect.isValid()) {
+        updateInputRegion(m_lastPillRect, m_lastCornerRadius);
+    }
 }
 
 void LayerSurfaceController::attachAsFullscreenOverlay(QScreen *preferredScreen)
@@ -177,6 +229,19 @@ void LayerSurfaceController::setKeyboardInteractive(bool interactive)
             interactive ? LayerShellQt::Window::KeyboardInteractivityOnDemand
                         : LayerShellQt::Window::KeyboardInteractivityNone);
     }
+}
+
+QScreen *LayerSurfaceController::findScreenByName(const QString &monitorName) const
+{
+    if (monitorName.isEmpty()) {
+        return nullptr;
+    }
+    for (QScreen *screen : QGuiApplication::screens()) {
+        if (screen && screen->name() == monitorName) {
+            return screen;
+        }
+    }
+    return nullptr;
 }
 
 QScreen *LayerSurfaceController::resolveUltrawideScreen(QScreen *preferredScreen) const

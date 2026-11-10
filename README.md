@@ -6,27 +6,43 @@ It unifies the floating island productivity workflow inspired by Windows **Pill*
 
 ---
 
+## One-Click Installation (CachyOS / Arch Linux)
+
+```bash
+git clone https://github.com/beanzcraftz/CatchyPills.git && cd CatchyPills && ./install.sh
+```
+
+`install.sh` automatically installs all required dependencies via `pacman`, compiles both `catchypills` (C++20/Qt6) and `catchypillsd` (Rust), installs binaries and XDG autostart entries, enables `catchypillsd.service`, and launches the Dynamic Island right away.
+
+To remove CatchyPills later:
+
+```bash
+./uninstall.sh          # Remove binaries, service, and autostart (keeps user data)
+./uninstall.sh --purge  # Also delete ~/.config/CatchyPills and ~/.local/share/CatchyPills
+```
+
+---
+
 ## Key Features
 
 - **Wayland-Native Dynamic Island (`zwlr_layer_shell_v1`):**
-  - Anchored flush to the top-center bezel (`exclusiveZone = 0`, `KeyboardInteractivityNone` when idle) via `LayerShellQt`.
-  - Fixed transparent QML canvas (`760×460`) with dynamic `QWindow::setMask()` (`wl_surface.set_input_region`) so every transparent pixel outside the animated pill passes mouse events directly to windows beneath.
-  - Frosted glass blur synchronized to the pill's rounded geometry via `KWindowEffects` (`ext_background_effect_manager_v1` on Plasma 6.8+).
+  - Anchored to the top bezel (`exclusiveZone = 0`, `KeyboardInteractivityNone` when idle) via `LayerShellQt`.
+  - Fixed transparent QML canvas (`760×460`) with dynamic `QWindow::setMask()` (`wl_surface.set_input_region`) so transparent pixels outside the animated pill stay click-through.
+  - Frosted glass blur synchronized to the pill geometry via `KWindowEffects` (`ext_background_effect_manager_v1` on Plasma 6.8+).
+- **Live Preferences & System Tray (`ConfigManager` + `SettingsWindow.qml`):**
+  - Accessible from the **gear icon** in the expanded island header or the **System Tray icon**.
+  - Live-updates target monitor, horizontal offset (`-1000` to `+1000` px), top margin (`0`–`64` px), hover collapse delay, auto-hide on fullscreen, clipboard pause/resume, file shelf retention timer, screenshot save folder, auto-copy behavior, and KDE autostart (`~/.config/CatchyPills/CatchyPills.conf`).
 - **Background Clipboard History (`ext_data_control_manager_v1`):**
   - Passive Wayland clipboard monitoring without stealing keyboard focus.
-  - Respects KDE/KeePassXC/KWallet privacy metadata by skipping entries carrying `x-kde-passwordManagerHint=secret`.
-  - Persists deduplicated text and PNG/WebP/JPEG clips in SQLite (`$XDG_DATA_HOME/CatchyPills/catchypills.db3`).
+  - Skips password manager secrets (`x-kde-passwordManagerHint=secret`) and stores deduplicated clips in SQLite (`$XDG_DATA_HOME/CatchyPills/catchypills.db3`).
 - **Instant Fuzzy File Search (`ignore` + `notify` + `nucleo`):**
-  - Parallel `$HOME` crawler kept live with `inotify` (`notify`), ranked in-memory with `nucleo` fuzzy path matching over Session D-Bus.
-- **Drag-and-Drop File Shelf:**
-  - Drop files, URLs, or text snippets onto the expanded island shelf for quick staging.
-- **Screen Capture, Annotations & Recording (`KWin.ScreenShot2` + `KPipeWire`):**
-  - Instant workspace and crop capture over `org.kde.KWin.ScreenShot2` using deadlock-free concurrent pipe reading.
-  - Fullscreen `3840×1080` `CaptureOverlay` (`exclusiveZone = -1`) featuring a **4× pixel-accurate loupe magnifier**, live dimensions badge, and embedded **`AnnotationCanvas`** (Arrows, Rectangles, and Blur/Pixelate redaction).
-  - Automatically saves PNGs to `~/Pictures/CatchyPills/` and publishes `image/png` to the Wayland clipboard.
-  - Recording pipeline initialized with `org.freedesktop.portal.ScreenCast` + `KPipeWire` (`PipeWireRecord`) supporting **GIF (15 fps)**, **WebP (20 fps)**, and **MP4 H.264 (60 fps)** presets.
+  - Parallel `$HOME` crawler kept live with `inotify`, fuzzy-matched in memory over Session D-Bus.
+- **OmniShot-Style Screen Capture, Annotations & Recording (`KWin.ScreenShot2` + `KPipeWire`):**
+  - Fullscreen `3840×1080` `CaptureOverlay` (`exclusiveZone = -1`) with **4× pixel-accurate loupe**, dimensions badge, and **`AnnotationCanvas`** (Arrows, Rectangles, and Blur/Pixelate redaction).
+  - Automatically saves PNGs (defaulting to `~/Pictures/Screenshots`) and optionally copies `image/png` to the Wayland clipboard.
+  - Recording presets initialized with `org.freedesktop.portal.ScreenCast` + `KPipeWire` (`PipeWireRecord`) for **GIF (15 fps)**, **WebP (20 fps)**, and **MP4 H.264 (60 fps)**.
 - **Resilient IPC:**
-  - Non-blocking `QDBusServiceWatcher` + async `Ping` backoff automatically reconnects if `catchypillsd` restarts, displaying a subtle offline state in `CollapsedPill` while disconnected.
+  - Non-blocking `QDBusServiceWatcher` + async `Ping` backoff automatically reconnects if `catchypillsd` restarts, showing an offline indicator in `CollapsedPill` while disconnected.
 
 ---
 
@@ -38,94 +54,38 @@ CatchyPills splits UI/Wayland/capture responsibilities from persistent backgroun
 +------------------------------------------+        Session D-Bus        +------------------------------------------+
 |         catchypills (C++20 / Qt6)        |   io.hearnelabs.CatchyPills |       catchypillsd (Rust Daemon)         |
 |                                          |<--------------------------->|                                          |
-| - Application (QDBusServiceWatcher)      |  GetRecentClips / Search    | - zbus (io.hearnelabs.CatchyPillsDaemon1)|
-| - LayerSurfaceController (LayerShellQt)  |  ClipboardUpdated signal    | - Clipboard Watcher (ext-data-control-v1)|
-| - CaptureCoordinator (ScreenShot2 /      |                             | - SQLite WAL store (rusqlite)            |
-|   ScreenCast Portal + KPipeWire)         |                             | - Parallel File Indexer (ignore + notify |
-| - QML UI (IslandWindow, CaptureOverlay,  |                             |   + nucleo fuzzy matcher)                |
-|   AnnotationCanvas, ExpandedDashboard)   |                             |                                          |
+| - Application + QSystemTrayIcon          |  GetRecentClips / Search    | - zbus (io.hearnelabs.CatchyPillsDaemon1)|
+| - ConfigManager (QSettings INI)          |  SetClipboardPaused         | - Clipboard Watcher (ext-data-control-v1)|
+| - LayerSurfaceController (LayerShellQt)  |  ClipboardUpdated signal    | - SQLite WAL store (rusqlite)            |
+| - CaptureCoordinator (ScreenShot2 /      |                             | - Parallel File Indexer (ignore + notify |
+|   ScreenCast Portal + KPipeWire)         |                             |   + nucleo fuzzy matcher)                |
+| - QML UI (Island, Settings, Overlay)     |                             |                                          |
 +------------------------------------------+                             +------------------------------------------+
 ```
 
 ---
 
-## Dependencies (Arch Linux / CachyOS)
+## Manual / Package Build (Optional)
 
-Install the build toolchain, Qt 6 / KDE Frameworks 6 libraries, and runtime tools:
-
-```bash
-sudo pacman -S --needed \
-    cmake ninja extra-cmake-modules rust pkgconf \
-    qt6-base qt6-declarative qt6-wayland \
-    layer-shell-qt kpipewire kwindowsystem kglobalaccel \
-    ffmpeg libpipewire wayland xdg-desktop-portal xdg-desktop-portal-kde \
-    tesseract wl-clipboard
-```
-
----
-
-## Build Instructions
-
-### Option A: Manual CMake + Cargo Build
-
-1. **Build the C++20 / Qt 6 frontend (`catchypills`):**
-   ```bash
-   cmake -B build -G Ninja \
-       -DCMAKE_BUILD_TYPE=Release \
-       -DCMAKE_INSTALL_PREFIX=/usr
-   cmake --build build
-   ```
-
-2. **Build the Rust background daemon (`catchypillsd`):**
-   ```bash
-   cd daemon
-   cargo build --release
-   cd ..
-   ```
-
-### Option B: Native Arch Package (`makepkg`)
-
-A ready-to-build `PKGBUILD` is provided in `packaging/arch/PKGBUILD`:
+If you prefer building a native Arch package or running steps manually:
 
 ```bash
+# Arch / CachyOS package build
 cd packaging/arch
 makepkg -si
-```
-
----
-
-## Installation & Autostart
-
-If installing manually (without `makepkg -si`), install both binaries, desktop entries, and the systemd user unit:
-
-```bash
-# 1. Install C++ frontend and application .desktop entry (/usr/bin/catchypills)
-sudo DESTDIR=/ cmake --install build
-
-# 2. Install XDG autostart entry (KDE Plasma Phase 2 startup)
-sudo install -Dm644 packaging/io.hearnelabs.CatchyPills.desktop \
-    /etc/xdg/autostart/io.hearnelabs.CatchyPills.desktop
-
-# 3. Install Rust daemon binary and systemd --user unit
-sudo install -Dm755 daemon/target/release/catchypillsd /usr/bin/catchypillsd
-sudo install -Dm644 packaging/catchypillsd.service \
-    /usr/lib/systemd/user/catchypillsd.service
-```
-
-### Enable the Background Daemon
-
-Reload your user systemd manager and enable `catchypillsd.service`:
-
-```bash
 systemctl --user daemon-reload
 systemctl --user enable --now catchypillsd.service
 ```
 
-Verify the D-Bus service is healthy:
+Or build manually with CMake and Cargo:
 
 ```bash
-systemctl --user status catchypillsd.service
-qdbus6 io.hearnelabs.CatchyPillsDaemon /io/hearnelabs/CatchyPillsDaemon io.hearnelabs.CatchyPillsDaemon1.Ping
-```
+sudo pacman -S --needed cmake ninja extra-cmake-modules rust pkgconf \
+    qt6-base qt6-declarative qt6-wayland layer-shell-qt kpipewire \
+    kwindowsystem kglobalaccel ffmpeg libpipewire wayland \
+    xdg-desktop-portal xdg-desktop-portal-kde tesseract wl-clipboard
 
-> **Note on KWin `ScreenShot2` Permissions:** `packaging/io.hearnelabs.CatchyPills.desktop` declares `X-KDE-DBUS-Restricted-Interfaces=org.kde.KWin.ScreenShot2`. Running `catchypills` after installing the `.desktop` entry into `/usr/share/applications/` (with matching `app.setDesktopFileName("io.hearnelabs.CatchyPills")`) allows KWin 6 to authorize silent screenshots without OS confirmation prompts.
+cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr
+cmake --build build
+(cd daemon && cargo build --release)
+```

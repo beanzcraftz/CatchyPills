@@ -147,4 +147,16 @@ void DaemonClient::searchFiles(const QString &query, int limit)
     });
 }
 
+void DaemonClient::setClipboardPaused(bool paused)
+{
+    auto msg = QDBusMessage::createMethodCall(
+        QString::fromLatin1(kServiceName),
+        QString::fromLatin1(kObjectPath),
+        QString::fromLatin1(kInterfaceName),
+        QStringLiteral("SetClipboardPaused"));
+    msg << paused;
+
+    QDBusConnection::sessionBus().asyncCall(msg);
+}
+
 } // namespace catchypills::core

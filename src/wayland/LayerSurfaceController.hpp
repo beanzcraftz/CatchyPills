@@ -4,6 +4,7 @@
 #include <QRect>
 #include <QRegion>
 #include <QSize>
+#include <QString>
 
 class QQuickWindow;
 class QScreen;
@@ -29,6 +30,15 @@ public:
      * Anchors flush to the top-center bezel of the target 3840x1080 display.
      */
     void attachToLayerShell(QScreen *preferredScreen = nullptr);
+
+    /**
+     * Applies live Display & Position settings (target monitor, horizontal offset,
+     * top margin, and fullscreen auto-hide layer policy) without recreating the surface.
+     */
+    Q_INVOKABLE void applyDisplayPreferences(const QString &monitorName,
+                                             int horizontalOffset,
+                                             int topMargin,
+                                             bool autoHideFullscreen);
 
     /**
      * Binds LayerShellQt properties for the fullscreen CaptureOverlay across all
@@ -57,6 +67,7 @@ Q_SIGNALS:
     void clickThroughChanged(bool enabled);
 
 private:
+    QScreen *findScreenByName(const QString &monitorName) const;
     QScreen *resolveUltrawideScreen(QScreen *preferredScreen) const;
     void applyBlurBehind(const QRegion &region);
 
