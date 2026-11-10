@@ -191,24 +191,24 @@ Window {
                 onHoveredChanged: {
                     if (hovered) {
                         collapseDelay.stop()
-                        if (!collapsedHud.dragging && !root.dragActive && pillContainer.state !== "expanded") {
+                        if (!collapsedHud.repositioning && !root.dragActive && pillContainer.state !== "expanded") {
                             hoverExpandDelay.restart()
                         }
                     } else {
                         hoverExpandDelay.stop()
-                        if (!root.dragActive) {
+                        if (!root.dragActive && !collapsedHud.repositioning) {
                             collapseDelay.restart()
                         }
                     }
                 }
             }
 
-            // Brief hover settle distinguishes intentional rest-to-open from click-and-drag.
+            // Brief hover settle distinguishes intentional rest-to-open from right-click drag.
             Timer {
                 id: hoverExpandDelay
                 interval: 180
                 onTriggered: {
-                    if (islandHover.hovered && !collapsedHud.dragging && !root.dragActive) {
+                    if (islandHover.hovered && !collapsedHud.repositioning && !root.dragActive) {
                         pillContainer.state = "expanded"
                         if (root.hasLayer) {
                             layerController.setKeyboardInteractive(true)
@@ -221,7 +221,7 @@ Window {
                 id: collapseDelay
                 interval: configManager.collapseDelayMs
                 onTriggered: {
-                    if (!islandHover.hovered && !dashboard.searchInputFocused && !collapsedHud.dragging && !root.dragActive) {
+                    if (!islandHover.hovered && !dashboard.searchInputFocused && !collapsedHud.repositioning && !root.dragActive) {
                         pillContainer.state = "collapsed"
                         if (root.hasLayer) {
                             layerController.setKeyboardInteractive(false)
@@ -299,7 +299,10 @@ Window {
                 daemonOnline: appController.daemonOnline
                 externalDragActive: root.dragActive
 
-                onDragPressed: hoverExpandDelay.stop()
+                onDragPressed: {
+                    hoverExpandDelay.stop()
+                    collapseDelay.stop()
+                }
                 onDragStarted: {
                     if (root.dragActive) {
                         return
@@ -345,6 +348,9 @@ Window {
                     }
                 }
                 onClicked: {
+                    if (collapsedHud.repositioning || root.dragActive) {
+                        return
+                    }
                     hoverExpandDelay.stop()
                     collapseDelay.stop()
                     pillContainer.state = "expanded"

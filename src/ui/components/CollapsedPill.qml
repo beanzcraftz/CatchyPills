@@ -9,6 +9,7 @@ Item {
     property bool daemonOnline: true
     property bool externalDragActive: false
     readonly property bool dragging: dragArea.dragging
+    readonly property bool repositioning: dragArea.pressed || dragArea.dragging
 
     signal dragPressed()
     signal dragStarted()
@@ -16,11 +17,17 @@ Item {
     signal dragFinished()
     signal clicked()
 
+    TapHandler {
+        acceptedButtons: Qt.LeftButton
+        enabled: !root.externalDragActive && !dragArea.pressed && !dragArea.dragging
+        onTapped: root.clicked()
+    }
+
     MouseArea {
         id: dragArea
         anchors.fill: parent
         enabled: !root.externalDragActive
-        acceptedButtons: Qt.LeftButton
+        acceptedButtons: Qt.RightButton
         hoverEnabled: false
         cursorShape: (pressed || dragging) ? Qt.ClosedHandCursor : Qt.PointingHandCursor
         onEnabledChanged: {
@@ -34,6 +41,10 @@ Item {
         property bool dragging: false
 
         onPressed: function(mouse) {
+            if (mouse.button !== Qt.RightButton) {
+                mouse.accepted = false
+                return
+            }
             pressX = mouse.x
             pressY = mouse.y
             dragging = false
@@ -41,7 +52,7 @@ Item {
         }
 
         onPositionChanged: function(mouse) {
-            if (!pressed) {
+            if (!pressed || !(mouse.buttons & Qt.RightButton)) {
                 return
             }
             var dx = mouse.x - pressX
@@ -56,12 +67,10 @@ Item {
             root.dragMoved(dx, dy, pressX, pressY)
         }
 
-        onReleased: function(mouse) {
+        onReleased: {
             if (dragging) {
                 dragging = false
                 root.dragFinished()
-            } else if (mouse.x >= 0 && mouse.x <= width && mouse.y >= 0 && mouse.y <= height) {
-                root.clicked()
             }
         }
 
