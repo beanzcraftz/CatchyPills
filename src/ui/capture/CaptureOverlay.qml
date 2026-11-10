@@ -22,6 +22,10 @@ Window {
     property bool isSelecting: false
     property bool hasSelection: false
     property bool isRecording: false
+    property bool recordingFlowActive: false
+    readonly property bool isSaving: typeof captureCoordinator !== "undefined"
+                                     && captureCoordinator !== null
+                                     && captureCoordinator.saving
     property int elapsedSeconds: 0
     property rect selectionRect: Qt.rect(0, 0, 0, 0)
 
@@ -35,7 +39,12 @@ Window {
     }
 
     function syncRecordingMask() {
-        if (!hasOverlayLayer || !isRecording) {
+        if (!hasOverlayLayer || (!isRecording && !isSaving)) {
+            return
+        }
+        if (typeof captureCoordinator !== "undefined"
+                && captureCoordinator !== null
+                && captureCoordinator.saveDialogOpen) {
             return
         }
         overlayLayerController.setOverlayRecordingPassThrough(
@@ -48,7 +57,7 @@ Window {
     }
 
     onVisibleChanged: {
-        if (visible && !isRecording) {
+        if (visible && !isRecording && !isSaving) {
             resetState()
             if (hasOverlayLayer) {
                 overlayLayerController.restoreFullscreenOverlay()
@@ -61,6 +70,7 @@ Window {
         isSelecting = false
         hasSelection = false
         isRecording = false
+        recordingFlowActive = false
         elapsedSeconds = 0
         selectionRect = Qt.rect(0, 0, 0, 0)
         annotationCanvas.activeTool = "none"
@@ -68,8 +78,12 @@ Window {
     }
 
     function cancelOverlay() {
+        if (isSaving) {
+            return
+        }
         if (isRecording) {
             captureCoordinator.stopRecording()
+            return
         }
         resetState()
         if (hasOverlayLayer) {
@@ -105,6 +119,7 @@ Window {
 
         root.isSelecting = false
         root.elapsedSeconds = 0
+        root.recordingFlowActive = true
         root.isRecording = true
         annotationCanvas.activeTool = "none"
 
@@ -113,18 +128,23 @@ Window {
     }
 
     function stopRegionRecording() {
-        captureCoordinator.stopRecording()
-        resetState()
-        if (hasOverlayLayer) {
-            overlayLayerController.restoreFullscreenOverlay()
+        if (root.isSaving) {
+            return
         }
-        root.visible = false
+        // Keep CaptureOverlay visible so the toolbar transitions immediately to disabled
+        // "Saving..." while KPipeWire flushes and the native Save As dialog is open.
+        captureCoordinator.stopRecording()
     }
 
     Connections {
         target: captureCoordinator
+        function onRecordingChanged(active) {
+            if (root.recordingFlowActive && !active) {
+                root.isRecording = false
+            }
+        }
         function onCaptureFailed() {
-            if (root.visible || root.isRecording) {
+            if (root.visible || root.isRecording || root.recordingFlowActive || root.isSaving) {
                 root.resetState()
                 if (root.hasOverlayLayer) {
                     overlayLayerController.restoreFullscreenOverlay()
@@ -133,7 +153,7 @@ Window {
             }
         }
         function onCaptureWorkflowFinished() {
-            if (root.isRecording) {
+            if (root.recordingFlowActive || root.isRecording || root.isSaving) {
                 root.resetState()
                 if (root.hasOverlayLayer) {
                     overlayLayerController.restoreFullscreenOverlay()
@@ -147,7 +167,7 @@ Window {
         id: recordingTimer
         interval: 1000
         repeat: true
-        running: root.isRecording
+        running: root.isRecording && !root.isSaving
         onTriggered: root.elapsedSeconds += 1
     }
 
@@ -182,22 +202,22 @@ Window {
         focus: true
 
         Keys.onEscapePressed: {
-            if (!root.isRecording) {
+            if (!root.isRecording && !root.isSaving) {
                 root.cancelOverlay()
             }
         }
         Keys.onReturnPressed: {
-            if (!root.isRecording) {
+            if (!root.isRecording && !root.isSaving) {
                 root.commitOmniShot()
             }
         }
         Keys.onEnterPressed: {
-            if (!root.isRecording) {
+            if (!root.isRecording && !root.isSaving) {
                 root.commitOmniShot()
             }
         }
         Keys.onPressed: function(event) {
-            if (!root.isRecording && (event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_Z) {
+            if (!root.isRecording && !root.isSaving && (event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_Z) {
                 annotationCanvas.undo()
                 event.accepted = true
             }
@@ -208,7 +228,7 @@ Window {
         Image {
             id: backdropImage
             anchors.fill: parent
-            visible: !root.isRecording
+            visible: !root.isRecording && !root.isSaving
             cache: false
             fillMode: Image.PreserveAspectCrop
             source: captureCoordinator.backdropRevision > 0
@@ -218,13 +238,13 @@ Window {
 
         // 4-part dimming mask around selectionRect (hidden during live recording).
         Rectangle {
-            visible: !root.isRecording && !root.hasSelection && !root.isSelecting
+            visible: !root.isRecording && !root.isSaving && !root.hasSelection && !root.isSelecting
             anchors.fill: parent
             color: Qt.rgba(0, 0, 0, 0.45)
         }
 
         Item {
-            visible: !root.isRecording && (root.hasSelection || root.isSelecting)
+            visible: !root.isRecording && !root.isSaving && (root.hasSelection || root.isSelecting)
             anchors.fill: parent
 
             Rectangle { // Top
@@ -254,12 +274,12 @@ Window {
             }
         }
 
-        // Region drag MouseArea (disabled when annotating or recording).
+        // Region drag MouseArea (disabled when annotating, recording, or saving).
         MouseArea {
             id: selectorMouse
             anchors.fill: parent
-            hoverEnabled: !root.isRecording
-            enabled: !root.isRecording && !annotationCanvas.drawingEnabled
+            hoverEnabled: !root.isRecording && !root.isSaving
+            enabled: !root.isRecording && !root.isSaving && !annotationCanvas.drawingEnabled
             cursorShape: Qt.CrossCursor
 
             onPressed: function(mouse) {
@@ -295,7 +315,7 @@ Window {
         // Selection outline + embedded AnnotationCanvas inside crop bounds.
         Rectangle {
             id: selectionFrame
-            visible: root.selectionRect.width > 1 && root.selectionRect.height > 1
+            visible: !root.isSaving && root.selectionRect.width > 1 && root.selectionRect.height > 1
             x: root.selectionRect.x
             y: root.selectionRect.y
             width: root.selectionRect.width
@@ -307,13 +327,13 @@ Window {
             AnnotationCanvas {
                 id: annotationCanvas
                 anchors.fill: parent
-                visible: !root.isRecording
+                visible: !root.isRecording && !root.isSaving
             }
         }
 
         // Dimension readout badge above/inside selection.
         Rectangle {
-            visible: selectionFrame.visible && !root.isRecording
+            visible: selectionFrame.visible && !root.isRecording && !root.isSaving
             x: Math.max(8, Math.min(parent.width - width - 8, root.selectionRect.x))
             y: root.selectionRect.y > 36 ? root.selectionRect.y - 32 : root.selectionRect.y + 8
             width: dimLabel.implicitWidth + 18
@@ -336,7 +356,7 @@ Window {
         // 4x Pixel-Perfect Magnifier Loupe following cursor when selecting/positioning.
         Item {
             id: loupeRoot
-            visible: !root.isRecording && backdropImage.status === Image.Ready && (root.isSelecting || !root.hasSelection)
+            visible: !root.isRecording && !root.isSaving && backdropImage.status === Image.Ready && (root.isSelecting || !root.hasSelection)
             width: 120
             height: 142
             x: root.cursorPos.x + 26 + width > parent.width
@@ -440,18 +460,20 @@ Window {
             color: Qt.rgba(0, 0, 0, 0.65)
         }
 
-        // Floating Toolbar directly beneath selectionRect (morphs into live REC MM:SS + Stop when recording).
+        // Floating Toolbar directly beneath selectionRect (morphs into live REC MM:SS + Stop/Saving).
         Rectangle {
             id: actionBar
-            visible: (root.hasSelection && !root.isSelecting) || root.isRecording
-            width: (root.isRecording ? liveRecRow.implicitWidth : barCol.implicitWidth) + 24
-            height: (root.isRecording ? liveRecRow.implicitHeight : barCol.implicitHeight) + 18
+            visible: (root.hasSelection && !root.isSelecting) || root.isRecording || root.isSaving
+            width: ((root.isRecording || root.isSaving) ? liveRecRow.implicitWidth : barCol.implicitWidth) + 24
+            height: ((root.isRecording || root.isSaving) ? liveRecRow.implicitHeight : barCol.implicitHeight) + 18
             radius: 16
             color: Qt.rgba(0.118, 0.118, 0.180, 0.95)
             border.width: 1
-            border.color: root.isRecording
-                          ? Qt.rgba(0.94, 0.27, 0.27, 0.70)
-                          : Qt.rgba(0.0, 0.90, 0.64, 0.45)
+            border.color: root.isSaving
+                          ? Qt.rgba(0.58, 0.64, 0.72, 0.45)
+                          : (root.isRecording
+                             ? Qt.rgba(0.94, 0.27, 0.27, 0.70)
+                             : Qt.rgba(0.0, 0.90, 0.64, 0.45))
 
             x: Math.max(12, Math.min(parent.width - width - 12,
                                      root.selectionRect.x + (root.selectionRect.width - width) / 2))
@@ -459,10 +481,10 @@ Window {
                ? root.selectionRect.y + root.selectionRect.height + 12
                : Math.max(12, root.selectionRect.y - height - 12)
 
-            onXChanged: if (root.isRecording) root.syncRecordingMask()
-            onYChanged: if (root.isRecording) root.syncRecordingMask()
-            onWidthChanged: if (root.isRecording) root.syncRecordingMask()
-            onHeightChanged: if (root.isRecording) root.syncRecordingMask()
+            onXChanged: if (root.isRecording || root.isSaving) root.syncRecordingMask()
+            onYChanged: if (root.isRecording || root.isSaving) root.syncRecordingMask()
+            onWidthChanged: if (root.isRecording || root.isSaving) root.syncRecordingMask()
+            onHeightChanged: if (root.isRecording || root.isSaving) root.syncRecordingMask()
 
             component ToolbarActionBtn : Rectangle {
                 id: actBtn
@@ -475,20 +497,32 @@ Window {
                 implicitWidth: btnContent.implicitWidth + 20
                 implicitHeight: 34
                 radius: 10
-                color: danger
-                       ? (actMouse.pressed ? "#dc2626" : (actHover.hovered ? "#f87171" : "#ef4444"))
-                       : (primary
-                          ? (actMouse.pressed ? Qt.darker("#00e5a3", 1.15)
-                                              : (actHover.hovered ? "#22f3b5" : "#00e5a3"))
-                          : (actMouse.pressed ? Qt.rgba(1, 1, 1, 0.16)
-                                              : (actHover.hovered ? Qt.rgba(1, 1, 1, 0.12)
-                                                                  : Qt.rgba(1, 1, 1, 0.06))))
+                opacity: actBtn.enabled ? 1.0 : 0.65
+                color: !actBtn.enabled
+                       ? Qt.rgba(0.28, 0.33, 0.41, 0.85)
+                       : (danger
+                          ? (actMouse.pressed ? "#dc2626" : (actHover.hovered ? "#f87171" : "#ef4444"))
+                          : (primary
+                             ? (actMouse.pressed ? Qt.darker("#00e5a3", 1.15)
+                                                 : (actHover.hovered ? "#22f3b5" : "#00e5a3"))
+                             : (actMouse.pressed ? Qt.rgba(1, 1, 1, 0.16)
+                                                 : (actHover.hovered ? Qt.rgba(1, 1, 1, 0.12)
+                                                                     : Qt.rgba(1, 1, 1, 0.06)))))
                 border.width: 1
-                border.color: (primary || danger)
-                              ? Qt.rgba(1, 1, 1, 0.35)
-                              : (actHover.hovered ? Qt.rgba(0.0, 0.90, 0.64, 0.55) : Qt.rgba(1, 1, 1, 0.12))
+                border.color: !actBtn.enabled
+                              ? Qt.rgba(1, 1, 1, 0.16)
+                              : ((primary || danger)
+                                 ? Qt.rgba(1, 1, 1, 0.35)
+                                 : (actHover.hovered ? Qt.rgba(0.0, 0.90, 0.64, 0.55) : Qt.rgba(1, 1, 1, 0.12)))
 
-                HoverHandler { id: actHover }
+                onEnabledChanged: btnIconCanvas.requestPaint()
+                onDangerChanged: btnIconCanvas.requestPaint()
+                onPrimaryChanged: btnIconCanvas.requestPaint()
+
+                HoverHandler {
+                    id: actHover
+                    enabled: actBtn.enabled
+                }
 
                 Row {
                     id: btnContent
@@ -496,13 +530,16 @@ Window {
                     spacing: 6
 
                     Canvas {
+                        id: btnIconCanvas
                         anchors.verticalCenter: parent.verticalCenter
                         width: 14
                         height: 14
                         onPaint: {
                             var ctx = getContext("2d")
                             ctx.clearRect(0, 0, width, height)
-                            var fg = actBtn.primary ? "#091216" : (actBtn.danger ? "#ffffff" : "#e2e8f0")
+                            var fg = !actBtn.enabled
+                                     ? "#cbd5e1"
+                                     : (actBtn.primary ? "#091216" : (actBtn.danger ? "#ffffff" : "#e2e8f0"))
                             ctx.strokeStyle = fg
                             ctx.fillStyle = fg
                             ctx.lineWidth = 1.5
@@ -542,9 +579,11 @@ Window {
 
                     Text {
                         anchors.verticalCenter: parent.verticalCenter
-                        color: actBtn.primary ? "#091216" : (actBtn.danger ? "#ffffff" : "#f1f5f9")
+                        color: !actBtn.enabled
+                               ? "#e2e8f0"
+                               : (actBtn.primary ? "#091216" : (actBtn.danger ? "#ffffff" : "#f1f5f9"))
                         font.pixelSize: 12
-                        font.weight: (actBtn.primary || actBtn.danger) ? Font.DemiBold : Font.Medium
+                        font.weight: (actBtn.primary || actBtn.danger || !actBtn.enabled) ? Font.DemiBold : Font.Medium
                         text: actBtn.label
                     }
                 }
@@ -552,7 +591,8 @@ Window {
                 MouseArea {
                     id: actMouse
                     anchors.fill: parent
-                    cursorShape: Qt.PointingHandCursor
+                    enabled: actBtn.enabled
+                    cursorShape: actBtn.enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
                     onClicked: actBtn.triggered()
                 }
             }
@@ -560,7 +600,7 @@ Window {
             // Selection Mode Toolbar (Annotation Tools + OmniShot Screenshot + Record MP4)
             ColumnLayout {
                 id: barCol
-                visible: !root.isRecording
+                visible: !root.isRecording && !root.isSaving
                 anchors.centerIn: parent
                 spacing: 8
 
@@ -660,10 +700,10 @@ Window {
                 }
             }
 
-            // Live Recording Mode Toolbar (Pulsing indicator + MM:SS Timer + Stop Recording)
+            // Live Recording Mode Toolbar (Pulsing indicator + MM:SS Timer + Stop/Saving)
             RowLayout {
                 id: liveRecRow
-                visible: root.isRecording
+                visible: root.isRecording || root.isSaving
                 anchors.centerIn: parent
                 spacing: 12
 
@@ -671,10 +711,11 @@ Window {
                     implicitWidth: 10
                     implicitHeight: 10
                     radius: 5
-                    color: "#ef4444"
+                    color: root.isSaving ? "#f59e0b" : "#ef4444"
+                    opacity: 1.0
 
                     SequentialAnimation on opacity {
-                        running: root.isRecording
+                        running: root.isRecording && !root.isSaving
                         loops: Animation.Infinite
                         NumberAnimation { to: 0.25; duration: 480 }
                         NumberAnimation { to: 1.0; duration: 480 }
@@ -682,10 +723,10 @@ Window {
                 }
 
                 Text {
-                    color: "#fca5a5"
+                    color: root.isSaving ? "#fcd34d" : "#fca5a5"
                     font.pixelSize: 11
                     font.weight: Font.Bold
-                    text: "REC"
+                    text: root.isSaving ? "SAVE" : "REC"
                 }
 
                 Text {
@@ -697,9 +738,10 @@ Window {
                 }
 
                 ToolbarActionBtn {
-                    label: "Stop Recording"
+                    label: root.isSaving ? "Saving..." : "Stop Recording"
                     iconKind: "stop"
-                    danger: true
+                    danger: !root.isSaving
+                    enabled: !root.isSaving
                     onTriggered: root.stopRegionRecording()
                 }
             }

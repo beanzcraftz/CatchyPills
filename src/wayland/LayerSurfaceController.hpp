@@ -99,6 +99,12 @@ public:
     Q_INVOKABLE void restoreFullscreenOverlay();
 
     /**
+     * Temporarily drops the LayerShell surface to LayerBottom without keyboard focus
+     * or pointer interception so native portal / file dialogs render cleanly above it.
+     */
+    Q_INVOKABLE void setTemporaryDialogBehind(bool behind);
+
+    /**
      * Dynamically constrains pointer hit-testing to only the visible pill area
      * inside the fixed transparent canvas, or passes all clicks through.
      */

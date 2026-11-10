@@ -153,6 +153,27 @@ bool Application::initialize()
         }
     }
 
+    connect(m_captureCoordinator,
+            &capture::CaptureCoordinator::saveDialogOpenChanged,
+            this,
+            [this](bool open) {
+                if (m_overlayLayer) {
+                    if (open) {
+                        m_overlayLayer->setTemporaryDialogBehind(true);
+                    } else if (!m_captureCoordinator->isSaving()) {
+                        m_overlayLayer->restoreFullscreenOverlay();
+                    }
+                }
+                if (m_islandLayer) {
+                    if (open) {
+                        m_islandLayer->setTemporaryDialogBehind(true);
+                    } else {
+                        m_islandLayer->setTemporaryDialogBehind(false);
+                        applyDisplaySettings();
+                    }
+                }
+            });
+
     // Bind zwlr_layer_shell_v1 and saved ultrawide placement before mapping the surface.
     m_islandLayer->attachToLayerShell();
     applyDisplaySettings();

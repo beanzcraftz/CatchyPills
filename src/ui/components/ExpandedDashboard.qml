@@ -320,30 +320,41 @@ Item {
                                     implicitWidth: Math.max(btnLabel.implicitWidth + 44, 236)
                                     implicitHeight: 44
                                     radius: 12
-                                    color: captureCoordinator.recording
-                                           ? (ctaMouse.pressed ? "#dc2626" : (ctaHover.hovered ? "#f87171" : "#ef4444"))
-                                           : (ctaMouse.pressed ? Qt.darker("#00e5a3", 1.12)
-                                                               : (ctaHover.hovered ? "#22f3b5" : "#00e5a3"))
+                                    color: captureCoordinator.saving
+                                           ? Qt.rgba(0.28, 0.33, 0.41, 0.85)
+                                           : (captureCoordinator.recording
+                                              ? (ctaMouse.pressed ? "#dc2626" : (ctaHover.hovered ? "#f87171" : "#ef4444"))
+                                              : (ctaMouse.pressed ? Qt.darker("#00e5a3", 1.12)
+                                                                  : (ctaHover.hovered ? "#22f3b5" : "#00e5a3")))
                                     border.width: 1
-                                    border.color: Qt.rgba(1, 1, 1, 0.35)
+                                    border.color: Qt.rgba(1, 1, 1, captureCoordinator.saving ? 0.16 : 0.35)
+                                    opacity: captureCoordinator.saving ? 0.72 : 1.0
 
-                                    HoverHandler { id: ctaHover }
+                                    HoverHandler {
+                                        id: ctaHover
+                                        enabled: !captureCoordinator.saving
+                                    }
 
                                     Label {
                                         id: btnLabel
                                         anchors.centerIn: parent
-                                        color: captureCoordinator.recording ? "#ffffff" : "#091216"
+                                        color: captureCoordinator.saving
+                                               ? "#e2e8f0"
+                                               : (captureCoordinator.recording ? "#ffffff" : "#091216")
                                         font.pixelSize: 13
                                         font.weight: Font.DemiBold
-                                        text: captureCoordinator.recording
-                                              ? "Stop Recording"
-                                              : "Select Region / Capture"
+                                        text: captureCoordinator.saving
+                                              ? "Saving..."
+                                              : (captureCoordinator.recording
+                                                 ? "Stop Recording"
+                                                 : "Select Region / Capture")
                                     }
 
                                     MouseArea {
                                         id: ctaMouse
                                         anchors.fill: parent
-                                        cursorShape: Qt.PointingHandCursor
+                                        enabled: !captureCoordinator.saving
+                                        cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
                                         onClicked: {
                                             if (captureCoordinator.recording) {
                                                 captureCoordinator.stopRecording()

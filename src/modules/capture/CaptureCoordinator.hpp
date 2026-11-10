@@ -43,6 +43,8 @@ class CaptureCoordinator final : public QObject
 {
     Q_OBJECT
     Q_PROPERTY(bool recording READ isRecording NOTIFY recordingChanged)
+    Q_PROPERTY(bool saving READ isSaving NOTIFY savingChanged)
+    Q_PROPERTY(bool saveDialogOpen READ isSaveDialogOpen NOTIFY saveDialogOpenChanged)
     Q_PROPERTY(QString lastStatus READ lastStatus NOTIFY lastStatusChanged)
     Q_PROPERTY(int backdropRevision READ backdropRevision NOTIFY backdropRevisionChanged)
 
@@ -58,6 +60,8 @@ public:
     ~CaptureCoordinator() override;
 
     bool isRecording() const noexcept { return m_recording; }
+    bool isSaving() const noexcept { return m_saving; }
+    bool isSaveDialogOpen() const noexcept { return m_saveDialogOpen; }
     QString lastStatus() const { return m_lastStatus; }
     int backdropRevision() const noexcept { return m_backdropRevision; }
 
@@ -108,12 +112,15 @@ Q_SIGNALS:
     void screenshotCaptured(const QString &savedPath, const QSize &dimensions);
     void captureFailed(const QString &reason);
     void recordingChanged(bool recording);
+    void savingChanged(bool saving);
+    void saveDialogOpenChanged(bool open);
     void recordingFinished(const QString &outputPath);
     void lastStatusChanged();
     void backdropRevisionChanged();
 
 private Q_SLOTS:
     void onScreenCastResponse(uint response, const QVariantMap &results);
+    void onFileChooserResponse(uint response, const QVariantMap &results);
 
 private:
     enum class ShotPurpose {
@@ -145,11 +152,20 @@ private:
                                 const QPoint &streamPos,
                                 const QSize &streamSize);
     void finalizeRecordedVideo();
+    void promptSaveRecordingDialog();
+    void openFallbackSaveDialog(const QString &defaultFilePath);
+    void processRecordedVideoToDestination(const QString &destinationPath);
+    void cancelPendingSave();
+    void cleanupRawRecordingFile();
     void notifyRecordingSaved(const QString &outputPath);
 
     void setStatus(const QString &status);
+    void setSaving(bool saving);
+    void setSaveDialogOpen(bool open);
     QString buildOutputPath(const QString &extension) const;
-    QString buildVideoOutputPath(const QString &prefix = QStringLiteral("screencast")) const;
+    QString buildTempVideoPath() const;
+    QString defaultVideoDirectory() const;
+    QString defaultVideoFilename() const;
 
     CaptureImageProvider *m_imageProvider{nullptr};
     PipeWireRecord *m_recorder{nullptr};
@@ -161,12 +177,15 @@ private:
     QSize m_streamSize;
     QVariantList m_pendingAnnotations;
     QString m_portalSessionHandle;
+    QString m_fileChooserRequestPath;
     QString m_activeOutputPath;
     QString m_rawRecordingPath;
     QString m_outputDirectory;
     QString m_lastStatus;
     int m_backdropRevision{0};
     bool m_recording{false};
+    bool m_saving{false};
+    bool m_saveDialogOpen{false};
     bool m_stopRequested{false};
     bool m_croppingInProgress{false};
     bool m_autoCopyEnabled{true};

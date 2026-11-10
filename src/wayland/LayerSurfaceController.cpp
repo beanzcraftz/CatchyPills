@@ -398,6 +398,37 @@ void LayerSurfaceController::restoreFullscreenOverlay()
     }
 }
 
+void LayerSurfaceController::setTemporaryDialogBehind(bool behind)
+{
+    if (!m_window) {
+        return;
+    }
+
+    if (auto *layerWindow = LayerShellQt::Window::get(m_window)) {
+        if (behind) {
+            layerWindow->setLayer(LayerShellQt::Window::LayerBottom);
+            layerWindow->setKeyboardInteractivity(LayerShellQt::Window::KeyboardInteractivityNone);
+            layerWindow->setActivateOnShow(false);
+        } else {
+            layerWindow->setLayer(m_autoHideFullscreen
+                                      ? LayerShellQt::Window::LayerTop
+                                      : LayerShellQt::Window::LayerOverlay);
+            layerWindow->setKeyboardInteractivity(LayerShellQt::Window::KeyboardInteractivityNone);
+        }
+    }
+
+    if (behind) {
+        m_window->setFlag(Qt::WindowTransparentForInput, true);
+    } else {
+        m_window->setFlag(Qt::WindowTransparentForInput, m_clickThrough);
+        updateInputRegion(m_lastPillRect, m_lastCornerRadius);
+    }
+
+    if (m_window->isVisible()) {
+        m_window->requestUpdate();
+    }
+}
+
 void LayerSurfaceController::updateInputRegion(const QRect &pillRect, int cornerRadius)
 {
     if (!m_window) {

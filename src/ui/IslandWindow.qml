@@ -54,6 +54,18 @@ Window {
                 layerController.setKeyboardInteractive(false)
             }
         }
+        function onSaveDialogOpenChanged(open) {
+            if (open) {
+                dragExitLock.stop()
+                hoverExpandDelay.stop()
+                collapseDelay.stop()
+                root.dragActive = false
+                pillContainer.state = "collapsed"
+                if (root.hasLayer) {
+                    layerController.setKeyboardInteractive(false)
+                }
+            }
+        }
     }
 
     // Coalesce compositor margin commits (~2 vblanks) so stale pre-commit
