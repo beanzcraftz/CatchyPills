@@ -160,8 +160,8 @@ Item {
             Layout.fillHeight: true
             radius: 16
             color: root.cyberWaveStyle
-                   ? Qt.rgba(0.04, 0.09, 0.09, 0.72)
-                   : Qt.rgba(1, 1, 1, 0.05)
+                   ? Qt.rgba(0.14, 0.15, 0.21, 0.72)
+                   : Qt.rgba(0.16, 0.16, 0.24, 0.62)
             border.width: 1
             border.color: mprisController.playing
                           ? root.accentColor

@@ -61,15 +61,15 @@ Item {
                     spacing: 2
 
                     Rectangle {
-                        implicitWidth: localLbl.implicitWidth + 12
+                        implicitWidth: localLbl.implicitWidth + 14
                         implicitHeight: 20
                         radius: 10
-                        color: root.searchMode === 0 ? Qt.rgba(0.22, 0.74, 0.97, 0.25) : "transparent"
+                        color: root.searchMode === 0 ? Qt.rgba(0.0, 0.90, 0.64, 0.22) : "transparent"
 
                         Label {
                             id: localLbl
                             anchors.centerIn: parent
-                            color: root.searchMode === 0 ? "#7dd3fc" : "#94a3b8"
+                            color: root.searchMode === 0 ? "#00e5a3" : "#94a3b8"
                             font.pixelSize: 10
                             font.weight: root.searchMode === 0 ? Font.DemiBold : Font.Normal
                             text: "Local Files"
@@ -83,7 +83,7 @@ Item {
                     }
 
                     Rectangle {
-                        implicitWidth: webLbl.implicitWidth + 12
+                        implicitWidth: webLbl.implicitWidth + 14
                         implicitHeight: 20
                         radius: 10
                         color: root.searchMode === 1 ? Qt.rgba(0.98, 0.45, 0.20, 0.26) : "transparent"
@@ -116,13 +116,11 @@ Item {
             placeholderTextColor: "#64748b"
             color: "#f8fafc"
             background: Rectangle {
-                radius: 10
-                color: Qt.rgba(1, 1, 1, 0.07)
+                radius: 12
+                color: Qt.rgba(0.16, 0.16, 0.24, 0.72)
                 border.width: 1
                 border.color: searchInput.activeFocus
-                              ? (root.searchMode === 0
-                                 ? Qt.rgba(0.22, 0.74, 0.97, 0.7)
-                                 : Qt.rgba(0.98, 0.45, 0.20, 0.75))
+                              ? (root.searchMode === 0 ? "#00e5a3" : "#fb923c")
                               : Qt.rgba(1, 1, 1, 0.12)
             }
             onTextChanged: {
@@ -153,27 +151,29 @@ Item {
                 anchors.fill: parent
                 visible: root.searchMode === 0
                 clip: true
-                spacing: 4
+                spacing: 8
                 model: daemonClient.searchResults
 
                 delegate: Rectangle {
                     id: resultDelegate
                     required property var modelData
                     width: searchList.width
-                    height: 36
-                    radius: 9
-                    color: searchHover.hovered ? Qt.rgba(1, 1, 1, 0.10) : Qt.rgba(1, 1, 1, 0.05)
+                    height: 44
+                    radius: 12
+                    color: searchHover.hovered ? Qt.rgba(0.0, 0.90, 0.64, 0.10) : Qt.rgba(0.16, 0.16, 0.24, 0.62)
+                    border.width: 1
+                    border.color: searchHover.hovered ? Qt.rgba(0.0, 0.90, 0.64, 0.45) : Qt.rgba(1, 1, 1, 0.08)
 
                     HoverHandler { id: searchHover }
 
                     RowLayout {
                         anchors.fill: parent
-                        anchors.leftMargin: 10
-                        anchors.rightMargin: 10
-                        spacing: 8
+                        anchors.leftMargin: 14
+                        anchors.rightMargin: 14
+                        spacing: 10
 
                         Label {
-                            color: "#e2e8f0"
+                            color: "#f8fafc"
                             font.pixelSize: 12
                             font.bold: true
                             text: resultDelegate.modelData.name
@@ -186,7 +186,7 @@ Item {
                             text: resultDelegate.modelData.path
                         }
                         Label {
-                            color: "#38bdf8"
+                            color: "#00e5a3"
                             font.pixelSize: 10
                             text: resultDelegate.modelData.score
                         }

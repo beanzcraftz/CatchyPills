@@ -84,12 +84,14 @@ void CaptureCoordinator::captureWorkspace(bool includeCursor)
 {
     m_pendingAnnotations.clear();
     m_pendingLogicalCrop = QRect();
+    m_pendingSaveFile = true;
+    m_pendingCopyClipboard = m_autoCopyEnabled;
     invokeScreenShot2(QStringLiteral("CaptureWorkspace"), {}, includeCursor, ShotPurpose::SaveAndCopy);
 }
 
 void CaptureCoordinator::captureArea(int x, int y, int width, int height, bool includeCursor)
 {
-    finalizeRegionCapture(x, y, width, height, {}, includeCursor);
+    finalizeRegionCapture(x, y, width, height, {}, includeCursor, true, m_autoCopyEnabled);
 }
 
 void CaptureCoordinator::prepareRegionCapture(bool includeCursor)
@@ -105,7 +107,9 @@ void CaptureCoordinator::finalizeRegionCapture(
     int width,
     int height,
     const QVariantList &annotations,
-    bool includeCursor)
+    bool includeCursor,
+    bool saveToFile,
+    bool copyToClipboard)
 {
     if (width <= 0 || height <= 0) {
         Q_EMIT captureFailed(QStringLiteral("Invalid capture area dimensions"));
@@ -114,6 +118,8 @@ void CaptureCoordinator::finalizeRegionCapture(
 
     m_pendingLogicalCrop = QRect(x, y, width, height);
     m_pendingAnnotations = annotations;
+    m_pendingSaveFile = saveToFile;
+    m_pendingCopyClipboard = copyToClipboard;
 
     const QVariantList args{
         x,
@@ -250,16 +256,18 @@ void CaptureCoordinator::handleCapturedImage(QImage image)
         m_pendingAnnotations.clear();
     }
 
-    const QString outPath = buildOutputPath(QStringLiteral("png"));
-    if (!image.save(outPath, "PNG")) {
-        setStatus(QStringLiteral("Failed to write PNG capture"));
-        Q_EMIT captureFailed(m_lastStatus);
-        return;
+    QString outPath;
+    if (m_pendingSaveFile) {
+        outPath = buildOutputPath(QStringLiteral("png"));
+        if (!image.save(outPath, "PNG")) {
+            setStatus(QStringLiteral("Failed to write PNG capture"));
+            Q_EMIT captureFailed(m_lastStatus);
+            return;
+        }
     }
 
-    // Automatically publish the capture to the Wayland clipboard when enabled so
-    // both catchypillsd (ext_data_control_v1) and paste targets receive it immediately.
-    if (m_autoCopyEnabled) {
+    // Publish captured pixels directly to the Wayland clipboard when requested.
+    if (m_pendingCopyClipboard) {
         if (QClipboard *clipboard = QGuiApplication::clipboard()) {
             QByteArray pngBytes;
             QBuffer buffer(&pngBytes);
@@ -273,13 +281,13 @@ void CaptureCoordinator::handleCapturedImage(QImage image)
         }
     }
 
-    setStatus(m_autoCopyEnabled
-                  ? QStringLiteral("Saved & copied %1x%2")
-                        .arg(image.width())
-                        .arg(image.height())
-                  : QStringLiteral("Saved %1x%2")
-                        .arg(image.width())
-                        .arg(image.height()));
+    if (m_pendingSaveFile && m_pendingCopyClipboard) {
+        setStatus(QStringLiteral("Saved & copied %1x%2").arg(image.width()).arg(image.height()));
+    } else if (m_pendingSaveFile) {
+        setStatus(QStringLiteral("Saved %1x%2").arg(image.width()).arg(image.height()));
+    } else {
+        setStatus(QStringLiteral("Copied %1x%2 to clipboard").arg(image.width()).arg(image.height()));
+    }
     Q_EMIT screenshotCaptured(outPath, image.size());
 }
 

@@ -82,7 +82,9 @@ public:
                                              int width,
                                              int height,
                                              const QVariantList &annotations,
-                                             bool includeCursor = false);
+                                             bool includeCursor = false,
+                                             bool saveToFile = true,
+                                             bool copyToClipboard = true);
 
     Q_INVOKABLE void startRecording(RecordingPreset preset = RecordingPreset::Gif,
                                       const QRect &cropRect = QRect());
@@ -130,6 +132,8 @@ private:
     int m_backdropRevision{0};
     bool m_recording{false};
     bool m_autoCopyEnabled{true};
+    bool m_pendingSaveFile{true};
+    bool m_pendingCopyClipboard{true};
 };
 
 } // namespace catchypills::capture

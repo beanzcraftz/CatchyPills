@@ -46,11 +46,11 @@ Item {
                 placeholderTextColor: "#64748b"
                 color: "#f8fafc"
                 background: Rectangle {
-                    radius: 10
-                    color: Qt.rgba(1, 1, 1, 0.07)
+                    radius: 12
+                    color: Qt.rgba(0.16, 0.16, 0.24, 0.72)
                     border.width: 1
                     border.color: noteInput.activeFocus
-                                  ? Qt.rgba(0.22, 0.74, 0.97, 0.7)
+                                  ? "#00e5a3"
                                   : Qt.rgba(1, 1, 1, 0.12)
                 }
                 onAccepted: root.submitNote()
@@ -86,36 +86,36 @@ Item {
                     required property string content
                     required property string createdAt
                     width: notesList.width
-                    height: Math.max(44, noteRowLayout.implicitHeight + 16)
-                    radius: 10
-                    color: noteHover.hovered ? Qt.rgba(1, 1, 1, 0.09) : Qt.rgba(1, 1, 1, 0.05)
+                    height: Math.max(54, noteRowLayout.implicitHeight + 24)
+                    radius: 12
+                    color: noteHover.hovered ? Qt.rgba(0.0, 0.90, 0.64, 0.10) : Qt.rgba(0.16, 0.16, 0.24, 0.62)
                     border.width: 1
-                    border.color: Qt.rgba(1, 1, 1, 0.08)
+                    border.color: noteHover.hovered ? Qt.rgba(0.0, 0.90, 0.64, 0.45) : Qt.rgba(1, 1, 1, 0.08)
 
                     HoverHandler { id: noteHover }
 
                     RowLayout {
                         id: noteRowLayout
                         anchors.fill: parent
-                        anchors.leftMargin: 10
-                        anchors.rightMargin: 8
-                        anchors.topMargin: 8
-                        anchors.bottomMargin: 8
-                        spacing: 10
+                        anchors.leftMargin: 14
+                        anchors.rightMargin: 12
+                        anchors.topMargin: 12
+                        anchors.bottomMargin: 12
+                        spacing: 12
 
                         Rectangle {
                             Layout.alignment: Qt.AlignTop
-                            implicitWidth: tsLabel.implicitWidth + 12
-                            implicitHeight: 22
-                            radius: 7
-                            color: Qt.rgba(0.22, 0.74, 0.97, 0.16)
+                            implicitWidth: tsLabel.implicitWidth + 14
+                            implicitHeight: 24
+                            radius: 8
+                            color: Qt.rgba(0.0, 0.90, 0.64, 0.14)
                             border.width: 1
-                            border.color: Qt.rgba(0.22, 0.74, 0.97, 0.35)
+                            border.color: Qt.rgba(0.0, 0.90, 0.64, 0.35)
 
                             Label {
                                 id: tsLabel
                                 anchors.centerIn: parent
-                                color: "#7dd3fc"
+                                color: "#00e5a3"
                                 font.pixelSize: 10
                                 font.weight: Font.Medium
                                 text: noteDelegate.createdAt

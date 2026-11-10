@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Effects
 import "components"
 
 Window {
@@ -102,6 +103,22 @@ Window {
             root.dragActive = false
         }
 
+        RectangularShadow {
+            id: pillShadow
+            x: pillContainer.x
+            y: pillContainer.y
+            width: pillContainer.width
+            height: pillContainer.height
+            offset: Qt.vector2d(0, 5)
+            blur: pillContainer.state === "expanded" ? 22 : 14
+            spread: 1
+            color: root.dragActive ? Qt.rgba(0.0, 0.90, 0.64, 0.26) : Qt.rgba(0, 0, 0, 0.58)
+            topLeftRadius: pillContainer.topLeftRadius
+            topRightRadius: pillContainer.topRightRadius
+            bottomLeftRadius: pillContainer.bottomLeftRadius
+            bottomRightRadius: pillContainer.bottomRightRadius
+        }
+
         Rectangle {
             id: pillContainer
             state: "collapsed"
@@ -116,15 +133,17 @@ Window {
             y: collapsedY
             width: 260
             height: 36
-            topLeftRadius: detachedFromTop ? 18 : 0
-            topRightRadius: detachedFromTop ? 18 : 0
-            bottomLeftRadius: 18
-            bottomRightRadius: 18
-            // Translucent dark-glass surface backed by KWin's ext_background_effect_v1
-            // blur region synchronized through LayerSurfaceController::updateInputRegion.
-            color: Qt.rgba(0.06, 0.08, 0.11, 0.72)
+            topLeftRadius: detachedFromTop ? 16 : 0
+            topRightRadius: detachedFromTop ? 16 : 0
+            bottomLeftRadius: 16
+            bottomRightRadius: 16
+            // Cohesive #1E1E2E dark glassmorphism with #00E5A3 neon emerald rim glow
+            // backed by KWin's ext_background_effect_v1 blur region.
+            color: Qt.rgba(0.118, 0.118, 0.180, 0.88)
             border.width: 1
-            border.color: Qt.rgba(1, 1, 1, 0.16)
+            border.color: (root.dragActive || state === "expanded")
+                          ? Qt.rgba(0.0, 0.90, 0.64, 0.50)
+                          : Qt.rgba(0.0, 0.90, 0.64, 0.30)
             clip: true
 
             // Update Wayland wl_surface.set_input_region via QWindow::setMask() on every
@@ -197,10 +216,10 @@ Window {
                         pillContainer.y: pillContainer.collapsedY
                         pillContainer.width: 260
                         pillContainer.height: 36
-                        pillContainer.topLeftRadius: pillContainer.detachedFromTop ? 18 : 0
-                        pillContainer.topRightRadius: pillContainer.detachedFromTop ? 18 : 0
-                        pillContainer.bottomLeftRadius: 18
-                        pillContainer.bottomRightRadius: 18
+                        pillContainer.topLeftRadius: pillContainer.detachedFromTop ? 16 : 0
+                        pillContainer.topRightRadius: pillContainer.detachedFromTop ? 16 : 0
+                        pillContainer.bottomLeftRadius: 16
+                        pillContainer.bottomRightRadius: 16
                     }
                 },
                 State {
@@ -210,10 +229,10 @@ Window {
                         pillContainer.y: pillContainer.expandedY
                         pillContainer.width: 660
                         pillContainer.height: 390
-                        pillContainer.topLeftRadius: pillContainer.detachedFromTop ? 28 : 0
-                        pillContainer.topRightRadius: pillContainer.detachedFromTop ? 28 : 0
-                        pillContainer.bottomLeftRadius: 28
-                        pillContainer.bottomRightRadius: 28
+                        pillContainer.topLeftRadius: pillContainer.detachedFromTop ? 22 : 0
+                        pillContainer.topRightRadius: pillContainer.detachedFromTop ? 22 : 0
+                        pillContainer.bottomLeftRadius: 22
+                        pillContainer.bottomRightRadius: 22
                     }
                 }
             ]
@@ -257,9 +276,6 @@ Window {
                 recordingActive: captureCoordinator.recording
                 daemonOnline: appController.daemonOnline
                 externalDragActive: root.dragActive
-                tickerText: daemonClient.latestClipPreview.length > 0
-                            ? daemonClient.latestClipPreview
-                            : "CatchyPills"
 
                 onDragPressed: hoverExpandDelay.stop()
                 onDragStarted: {

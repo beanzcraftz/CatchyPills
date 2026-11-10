@@ -37,6 +37,7 @@ find_package(KPipeWire REQUIRED)
 
 qt_add_executable(catchypills
     src/main.cpp
+    resources.qrc
     src/app/Application.hpp
     src/app/Application.cpp
     src/app/ConfigManager.hpp

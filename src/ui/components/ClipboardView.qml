@@ -30,37 +30,37 @@ Item {
                 id: clipboardList
                 anchors.fill: parent
                 clip: true
-                spacing: 6
+                spacing: 8
                 model: daemonClient.recentClips
 
                 delegate: Rectangle {
                     id: clipDelegate
                     required property var modelData
                     width: clipboardList.width
-                    height: 44
-                    radius: 11
-                    color: clipHover.hovered ? Qt.rgba(1, 1, 1, 0.10) : Qt.rgba(1, 1, 1, 0.05)
+                    height: 52
+                    radius: 12
+                    color: clipHover.hovered ? Qt.rgba(0.0, 0.90, 0.64, 0.10) : Qt.rgba(0.16, 0.16, 0.24, 0.62)
                     border.width: 1
-                    border.color: Qt.rgba(1, 1, 1, 0.08)
+                    border.color: clipHover.hovered ? Qt.rgba(0.0, 0.90, 0.64, 0.45) : Qt.rgba(1, 1, 1, 0.08)
 
                     HoverHandler { id: clipHover }
 
                     RowLayout {
                         anchors.fill: parent
-                        anchors.leftMargin: 12
-                        anchors.rightMargin: 12
-                        spacing: 10
+                        anchors.leftMargin: 14
+                        anchors.rightMargin: 14
+                        spacing: 12
 
                         Rectangle {
-                            implicitWidth: 46
-                            implicitHeight: 20
-                            radius: 6
+                            implicitWidth: 48
+                            implicitHeight: 22
+                            radius: 8
                             color: clipDelegate.modelData.kind === "image"
                                    ? Qt.rgba(0.65, 0.55, 0.98, 0.22)
-                                   : Qt.rgba(0.22, 0.74, 0.97, 0.20)
+                                   : Qt.rgba(0.0, 0.90, 0.64, 0.16)
                             Label {
                                 anchors.centerIn: parent
-                                color: clipDelegate.modelData.kind === "image" ? "#c4b5fd" : "#38bdf8"
+                                color: clipDelegate.modelData.kind === "image" ? "#c4b5fd" : "#00e5a3"
                                 font.pixelSize: 10
                                 font.bold: true
                                 text: clipDelegate.modelData.kind.toUpperCase()

@@ -42,17 +42,35 @@ Window {
         root.visible = false
     }
 
-    function commitCapture() {
+    function commitCapture(saveFile, copyClipboard) {
         if (!hasSelection || selectionRect.width < 4 || selectionRect.height < 4) {
             return
         }
         // Snapshot geometry & annotations before hiding so KWin unmaps the overlay
         // surface cleanly before ScreenShot2::CaptureArea grabs fresh pixels.
+        pendingCrop.action = "image"
         pendingCrop.x = Math.round(selectionRect.x)
         pendingCrop.y = Math.round(selectionRect.y)
         pendingCrop.w = Math.round(selectionRect.width)
         pendingCrop.h = Math.round(selectionRect.height)
         pendingCrop.annotations = annotationCanvas.exportAnnotations()
+        pendingCrop.saveFile = saveFile
+        pendingCrop.copyClipboard = copyClipboard
+
+        root.visible = false
+        finalizeTimer.restart()
+    }
+
+    function commitRecording(preset) {
+        if (!hasSelection || selectionRect.width < 8 || selectionRect.height < 8) {
+            return
+        }
+        pendingCrop.action = "record"
+        pendingCrop.x = Math.round(selectionRect.x)
+        pendingCrop.y = Math.round(selectionRect.y)
+        pendingCrop.w = Math.round(selectionRect.width)
+        pendingCrop.h = Math.round(selectionRect.height)
+        pendingCrop.recordPreset = preset
 
         root.visible = false
         finalizeTimer.restart()
@@ -60,25 +78,38 @@ Window {
 
     QtObject {
         id: pendingCrop
+        property string action: "image"
         property int x: 0
         property int y: 0
         property int w: 0
         property int h: 0
         property var annotations: []
+        property bool saveFile: true
+        property bool copyClipboard: true
+        property int recordPreset: 0
     }
 
     Timer {
         id: finalizeTimer
         interval: 60
         onTriggered: {
-            captureCoordinator.finalizeRegionCapture(
-                pendingCrop.x,
-                pendingCrop.y,
-                pendingCrop.w,
-                pendingCrop.h,
-                pendingCrop.annotations,
-                false
-            )
+            if (pendingCrop.action === "record") {
+                captureCoordinator.startRecording(
+                    pendingCrop.recordPreset,
+                    Qt.rect(pendingCrop.x, pendingCrop.y, pendingCrop.w, pendingCrop.h)
+                )
+            } else {
+                captureCoordinator.finalizeRegionCapture(
+                    pendingCrop.x,
+                    pendingCrop.y,
+                    pendingCrop.w,
+                    pendingCrop.h,
+                    pendingCrop.annotations,
+                    false,
+                    pendingCrop.saveFile,
+                    pendingCrop.copyClipboard
+                )
+            }
             root.resetState()
         }
     }
@@ -89,8 +120,8 @@ Window {
         focus: true
 
         Keys.onEscapePressed: root.cancelOverlay()
-        Keys.onReturnPressed: root.commitCapture()
-        Keys.onEnterPressed: root.commitCapture()
+        Keys.onReturnPressed: root.commitCapture(true, configManager.autoCopyCapture)
+        Keys.onEnterPressed: root.commitCapture(true, configManager.autoCopyCapture)
         Keys.onPressed: function(event) {
             if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_Z) {
                 annotationCanvas.undo()
@@ -196,7 +227,7 @@ Window {
             height: root.selectionRect.height
             color: "transparent"
             border.width: 2
-            border.color: "#38bdf8"
+            border.color: "#00e5a3"
 
             AnnotationCanvas {
                 id: annotationCanvas
@@ -209,12 +240,12 @@ Window {
             visible: selectionFrame.visible
             x: Math.max(8, Math.min(parent.width - width - 8, root.selectionRect.x))
             y: root.selectionRect.y > 36 ? root.selectionRect.y - 32 : root.selectionRect.y + 8
-            width: dimLabel.implicitWidth + 16
+            width: dimLabel.implicitWidth + 18
             height: 24
-            radius: 6
-            color: Qt.rgba(0.06, 0.08, 0.11, 0.9)
+            radius: 12
+            color: Qt.rgba(0.118, 0.118, 0.180, 0.92)
             border.width: 1
-            border.color: Qt.rgba(1, 1, 1, 0.18)
+            border.color: Qt.rgba(0.0, 0.90, 0.64, 0.50)
 
             Label {
                 id: dimLabel
@@ -283,7 +314,7 @@ Window {
                     radius: width / 2
                     color: "transparent"
                     border.width: 2
-                    border.color: "#38bdf8"
+                    border.color: "#00e5a3"
                 }
 
                 // Precision crosshair
@@ -307,8 +338,8 @@ Window {
                 anchors.horizontalCenter: parent.horizontalCenter
                 width: coordText.implicitWidth + 12
                 height: 18
-                radius: 4
-                color: Qt.rgba(0.05, 0.07, 0.1, 0.9)
+                radius: 8
+                color: Qt.rgba(0.118, 0.118, 0.180, 0.92)
 
                 Label {
                     id: coordText
@@ -320,61 +351,259 @@ Window {
             }
         }
 
-        // Floating Annotation & Confirm Toolbar anchored below (or above) selectionRect.
+        // Subtle DropShadow behind the floating capture toolbar.
+        RectangularShadow {
+            visible: actionBar.visible
+            x: actionBar.x
+            y: actionBar.y
+            width: actionBar.width
+            height: actionBar.height
+            radius: actionBar.radius
+            offset: Qt.vector2d(0, 8)
+            blur: 22
+            spread: 1
+            color: Qt.rgba(0, 0, 0, 0.65)
+        }
+
+        // Floating Annotation & Capture Action Toolbar anchored directly beneath selectionRect.
         Rectangle {
             id: actionBar
             visible: root.hasSelection && !root.isSelecting
-            width: barRow.implicitWidth + 16
-            height: 44
-            radius: 22
-            color: Qt.rgba(0.07, 0.09, 0.12, 0.94)
+            width: barCol.implicitWidth + 24
+            height: barCol.implicitHeight + 18
+            radius: 16
+            color: Qt.rgba(0.118, 0.118, 0.180, 0.95)
             border.width: 1
-            border.color: Qt.rgba(0.22, 0.74, 0.97, 0.5)
+            border.color: Qt.rgba(0.0, 0.90, 0.64, 0.45)
 
             x: Math.max(12, Math.min(parent.width - width - 12,
                                      root.selectionRect.x + (root.selectionRect.width - width) / 2))
-            y: root.selectionRect.y + root.selectionRect.height + 56 < parent.height
+            y: root.selectionRect.y + root.selectionRect.height + height + 16 < parent.height
                ? root.selectionRect.y + root.selectionRect.height + 12
                : Math.max(12, root.selectionRect.y - height - 12)
 
-            RowLayout {
-                id: barRow
-                anchors.centerIn: parent
-                spacing: 6
+            component ToolbarActionBtn : Rectangle {
+                id: actBtn
+                property string label: ""
+                property string iconKind: "save"
+                property bool primary: false
+                property bool btnEnabled: true
+                signal triggered()
 
-                Button {
-                    text: "Select"
-                    checked: annotationCanvas.activeTool === "none"
-                    onClicked: annotationCanvas.activeTool = "none"
+                implicitWidth: btnContent.implicitWidth + 20
+                implicitHeight: 34
+                radius: 10
+                opacity: btnEnabled ? 1.0 : 0.45
+                color: primary
+                       ? (actMouse.pressed ? Qt.darker("#00e5a3", 1.15)
+                                           : (actHover.hovered ? "#22f3b5" : "#00e5a3"))
+                       : (actMouse.pressed ? Qt.rgba(1, 1, 1, 0.16)
+                                           : (actHover.hovered ? Qt.rgba(1, 1, 1, 0.12)
+                                                               : Qt.rgba(1, 1, 1, 0.06)))
+                border.width: 1
+                border.color: primary
+                              ? Qt.rgba(1, 1, 1, 0.35)
+                              : (actHover.hovered ? Qt.rgba(0.0, 0.90, 0.64, 0.55) : Qt.rgba(1, 1, 1, 0.12))
+
+                HoverHandler { id: actHover }
+
+                Row {
+                    id: btnContent
+                    anchors.centerIn: parent
+                    spacing: 6
+
+                    Canvas {
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: 14
+                        height: 14
+                        onPaint: {
+                            var ctx = getContext("2d")
+                            ctx.clearRect(0, 0, width, height)
+                            ctx.strokeStyle = actBtn.primary ? "#091216" : "#e2e8f0"
+                            ctx.fillStyle = actBtn.primary ? "#091216" : "#e2e8f0"
+                            ctx.lineWidth = 1.5
+                            ctx.lineCap = "round"
+                            ctx.lineJoin = "round"
+
+                            if (actBtn.iconKind === "save") {
+                                ctx.beginPath()
+                                ctx.moveTo(7, 2)
+                                ctx.lineTo(7, 9.5)
+                                ctx.moveTo(4, 6.5)
+                                ctx.lineTo(7, 9.8)
+                                ctx.lineTo(10, 6.5)
+                                ctx.moveTo(2.5, 11.5)
+                                ctx.lineTo(11.5, 11.5)
+                                ctx.stroke()
+                            } else if (actBtn.iconKind === "copy") {
+                                ctx.beginPath()
+                                ctx.rect(4.5, 4.5, 7, 7.5)
+                                ctx.stroke()
+                                ctx.beginPath()
+                                ctx.moveTo(2.5, 9)
+                                ctx.lineTo(2.5, 2.5)
+                                ctx.lineTo(9, 2.5)
+                                ctx.stroke()
+                            } else if (actBtn.iconKind === "gif") {
+                                ctx.beginPath()
+                                ctx.rect(2, 3, 10, 8)
+                                ctx.stroke()
+                                ctx.beginPath()
+                                ctx.moveTo(5.8, 5.2)
+                                ctx.lineTo(9.2, 7)
+                                ctx.lineTo(5.8, 8.8)
+                                ctx.closePath()
+                                ctx.fill()
+                            } else if (actBtn.iconKind === "mp4") {
+                                ctx.beginPath()
+                                ctx.rect(1.5, 3.5, 7.5, 7)
+                                ctx.stroke()
+                                ctx.beginPath()
+                                ctx.moveTo(9, 5.5)
+                                ctx.lineTo(12.5, 3.8)
+                                ctx.lineTo(12.5, 10.2)
+                                ctx.lineTo(9, 8.5)
+                                ctx.closePath()
+                                ctx.stroke()
+                            } else {
+                                ctx.beginPath()
+                                ctx.moveTo(3.5, 3.5)
+                                ctx.lineTo(10.5, 10.5)
+                                ctx.moveTo(10.5, 3.5)
+                                ctx.lineTo(3.5, 10.5)
+                                ctx.stroke()
+                            }
+                        }
+                    }
+
+                    Text {
+                        anchors.verticalCenter: parent.verticalCenter
+                        color: actBtn.primary ? "#091216" : "#f1f5f9"
+                        font.pixelSize: 12
+                        font.weight: actBtn.primary ? Font.DemiBold : Font.Medium
+                        text: actBtn.label
+                    }
                 }
-                Button {
-                    text: "Arrow"
-                    checked: annotationCanvas.activeTool === "arrow"
-                    onClicked: annotationCanvas.activeTool = "arrow"
+
+                MouseArea {
+                    id: actMouse
+                    anchors.fill: parent
+                    enabled: actBtn.btnEnabled
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: actBtn.triggered()
                 }
-                Button {
-                    text: "Rect"
-                    checked: annotationCanvas.activeTool === "rect"
-                    onClicked: annotationCanvas.activeTool = "rect"
+            }
+
+            ColumnLayout {
+                id: barCol
+                anchors.centerIn: parent
+                spacing: 8
+
+                // Annotation micro-tools row
+                RowLayout {
+                    Layout.alignment: Qt.AlignHCenter
+                    spacing: 6
+
+                    Repeater {
+                        model: [
+                            { label: "Select", tool: "none" },
+                            { label: "Arrow", tool: "arrow" },
+                            { label: "Rect", tool: "rect" },
+                            { label: "Blur", tool: "blur" }
+                        ]
+
+                        delegate: Rectangle {
+                            id: toolChip
+                            required property var modelData
+                            readonly property bool active: annotationCanvas.activeTool === modelData.tool
+
+                            implicitWidth: toolText.implicitWidth + 16
+                            implicitHeight: 24
+                            radius: 8
+                            color: active
+                                   ? Qt.rgba(0.0, 0.90, 0.64, 0.22)
+                                   : (toolHover.hovered ? Qt.rgba(1, 1, 1, 0.10) : Qt.rgba(1, 1, 1, 0.04))
+                            border.width: 1
+                            border.color: active ? "#00e5a3" : Qt.rgba(1, 1, 1, 0.10)
+
+                            HoverHandler { id: toolHover }
+
+                            Text {
+                                id: toolText
+                                anchors.centerIn: parent
+                                color: toolChip.active ? "#00e5a3" : "#cbd5e1"
+                                font.pixelSize: 11
+                                font.weight: toolChip.active ? Font.DemiBold : Font.Normal
+                                text: toolChip.modelData.label
+                            }
+
+                            MouseArea {
+                                anchors.fill: parent
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: annotationCanvas.activeTool = toolChip.modelData.tool
+                            }
+                        }
+                    }
+
+                    Rectangle {
+                        implicitWidth: undoLbl.implicitWidth + 16
+                        implicitHeight: 24
+                        radius: 8
+                        opacity: annotationCanvas.annotations.length > 0 ? 1.0 : 0.40
+                        color: undoHover.hovered ? Qt.rgba(1, 1, 1, 0.10) : Qt.rgba(1, 1, 1, 0.04)
+                        border.width: 1
+                        border.color: Qt.rgba(1, 1, 1, 0.10)
+
+                        HoverHandler { id: undoHover }
+
+                        Text {
+                            id: undoLbl
+                            anchors.centerIn: parent
+                            color: "#cbd5e1"
+                            font.pixelSize: 11
+                            text: "Undo"
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            enabled: annotationCanvas.annotations.length > 0
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: annotationCanvas.undo()
+                        }
+                    }
                 }
-                Button {
-                    text: "Blur"
-                    checked: annotationCanvas.activeTool === "blur"
-                    onClicked: annotationCanvas.activeTool = "blur"
-                }
-                Button {
-                    text: "Undo"
-                    enabled: annotationCanvas.annotations.length > 0
-                    onClicked: annotationCanvas.undo()
-                }
-                Button {
-                    text: "Capture (Enter)"
-                    highlighted: true
-                    onClicked: root.commitCapture()
-                }
-                Button {
-                    text: "Cancel"
-                    onClicked: root.cancelOverlay()
+
+                // Primary Capture & Recording Action Buttons directly beneath selection
+                RowLayout {
+                    Layout.alignment: Qt.AlignHCenter
+                    spacing: 8
+
+                    ToolbarActionBtn {
+                        label: "Save Image"
+                        iconKind: "save"
+                        primary: true
+                        onTriggered: root.commitCapture(true, configManager.autoCopyCapture)
+                    }
+                    ToolbarActionBtn {
+                        label: "Copy Image"
+                        iconKind: "copy"
+                        onTriggered: root.commitCapture(false, true)
+                    }
+                    ToolbarActionBtn {
+                        label: "Record GIF"
+                        iconKind: "gif"
+                        onTriggered: root.commitRecording(0)
+                    }
+                    ToolbarActionBtn {
+                        label: "Record MP4"
+                        iconKind: "mp4"
+                        onTriggered: root.commitRecording(1)
+                    }
+                    ToolbarActionBtn {
+                        label: "Cancel"
+                        iconKind: "cancel"
+                        onTriggered: root.cancelOverlay()
+                    }
                 }
             }
         }

@@ -10,7 +10,7 @@ Window {
     minimumWidth: 480
     minimumHeight: 540
     title: "CatchyPills Settings"
-    color: "#0b0f17"
+    color: "#1e1e2e"
 
     FolderDialog {
         id: screenshotsFolderDialog
@@ -39,7 +39,7 @@ Window {
                 Item { Layout.fillWidth: true }
                 Label {
                     text: appController.daemonStatusText
-                    color: appController.daemonOnline ? "#34d399" : "#f59e0b"
+                    color: appController.daemonOnline ? "#00e5a3" : "#f59e0b"
                     font.pixelSize: 11
                 }
             }

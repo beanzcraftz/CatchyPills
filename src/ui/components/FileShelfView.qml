@@ -67,13 +67,13 @@ Item {
     Rectangle {
         id: shelfDropZone
         anchors.fill: parent
-        radius: 14
+        radius: 16
         color: dropArea.containsDrag
-               ? Qt.rgba(0.22, 0.74, 0.97, 0.14)
-               : Qt.rgba(1, 1, 1, 0.03)
+               ? Qt.rgba(0.0, 0.90, 0.64, 0.14)
+               : Qt.rgba(0.16, 0.16, 0.24, 0.55)
         border.width: 1
         border.color: dropArea.containsDrag
-                      ? Qt.rgba(0.22, 0.74, 0.97, 0.75)
+                      ? "#00e5a3"
                       : Qt.rgba(1, 1, 1, 0.10)
 
         DropArea {
@@ -134,11 +134,11 @@ Item {
                     required property string thumbnailPath
                     required property string kind
                     width: shelfList.width
-                    height: 48
-                    radius: 10
-                    color: rowHover.hovered ? Qt.rgba(1, 1, 1, 0.10) : Qt.rgba(1, 1, 1, 0.06)
+                    height: 58
+                    radius: 12
+                    color: rowHover.hovered ? Qt.rgba(0.0, 0.90, 0.64, 0.10) : Qt.rgba(0.12, 0.12, 0.19, 0.72)
                     border.width: 1
-                    border.color: Qt.rgba(1, 1, 1, 0.08)
+                    border.color: rowHover.hovered ? Qt.rgba(0.0, 0.90, 0.64, 0.45) : Qt.rgba(1, 1, 1, 0.08)
 
                     function toFileUrl(path) {
                         if (!path || path.length === 0) {
@@ -154,9 +154,11 @@ Item {
 
                     RowLayout {
                         anchors.fill: parent
-                        anchors.leftMargin: 8
-                        anchors.rightMargin: 8
-                        spacing: 10
+                        anchors.leftMargin: 12
+                        anchors.rightMargin: 10
+                        anchors.topMargin: 8
+                        anchors.bottomMargin: 8
+                        spacing: 12
 
                         Item {
                             Layout.fillWidth: true
@@ -164,13 +166,13 @@ Item {
 
                             RowLayout {
                                 anchors.fill: parent
-                                spacing: 10
+                                spacing: 12
 
                                 Rectangle {
                                     Layout.alignment: Qt.AlignVCenter
-                                    implicitWidth: 36
-                                    implicitHeight: 36
-                                    radius: 8
+                                    implicitWidth: 40
+                                    implicitHeight: 40
+                                    radius: 10
                                     clip: true
                                     color: thumbImage.visible
                                            ? Qt.rgba(0, 0, 0, 0.35)
