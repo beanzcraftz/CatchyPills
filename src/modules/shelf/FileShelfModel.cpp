@@ -9,6 +9,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QMimeData>
+#include <QMimeDatabase>
 #include <QSaveFile>
 #include <QStandardPaths>
 #include <QTimer>
@@ -17,6 +18,35 @@
 #include <algorithm>
 
 namespace catchypills::shelf {
+
+namespace {
+QString resolveImageThumbnailPath(const QFileInfo &info)
+{
+    if (!info.exists() || !info.isFile()) {
+        return {};
+    }
+
+    static const QStringList kImageExtensions = {
+        QStringLiteral("png"),  QStringLiteral("jpg"),  QStringLiteral("jpeg"),
+        QStringLiteral("webp"), QStringLiteral("gif"),  QStringLiteral("bmp"),
+        QStringLiteral("svg"),  QStringLiteral("avif"), QStringLiteral("tiff"),
+        QStringLiteral("tif"),  QStringLiteral("ico"),  QStringLiteral("heic"),
+        QStringLiteral("heif"), QStringLiteral("jxl"),
+    };
+
+    const QString suffix = info.suffix().toLower();
+    if (kImageExtensions.contains(suffix)) {
+        return info.absoluteFilePath();
+    }
+
+    const QMimeType mime = QMimeDatabase().mimeTypeForFile(info, QMimeDatabase::MatchDefault);
+    if (mime.isValid() && mime.name().startsWith(QLatin1String("image/"))) {
+        return info.absoluteFilePath();
+    }
+
+    return {};
+}
+} // namespace
 
 FileShelfModel::FileShelfModel(QObject *parent)
     : QAbstractListModel(parent)
@@ -50,6 +80,8 @@ QVariant FileShelfModel::data(const QModelIndex &index, int role) const
         return item.uri;
     case LocalPathRole:
         return item.localPath;
+    case ThumbnailPathRole:
+        return item.thumbnailPath;
     case KindRole:
         return item.kind;
     case AddedAtRole:
@@ -65,6 +97,7 @@ QHash<int, QByteArray> FileShelfModel::roleNames() const
         {NameRole, "name"},
         {UriRole, "uri"},
         {LocalPathRole, "localPath"},
+        {ThumbnailPathRole, "thumbnailPath"},
         {KindRole, "kind"},
         {AddedAtRole, "addedAt"},
     };
@@ -116,7 +149,12 @@ int FileShelfModel::addUrls(const QStringList &urlStrings)
             const QFileInfo info(local);
             entry.localPath = local;
             entry.name = info.fileName().isEmpty() ? local : info.fileName();
-            entry.kind = info.isDir() ? QStringLiteral("DIR") : QStringLiteral("FILE");
+            entry.thumbnailPath = resolveImageThumbnailPath(info);
+            if (!entry.thumbnailPath.isEmpty()) {
+                entry.kind = QStringLiteral("IMG");
+            } else {
+                entry.kind = info.isDir() ? QStringLiteral("DIR") : QStringLiteral("FILE");
+            }
         } else {
             const QString tail = parsed.fileName();
             entry.name = tail.isEmpty() ? entry.uri : tail;
@@ -274,6 +312,12 @@ void FileShelfModel::loadFromDisk()
         item.name = obj.value(QStringLiteral("name")).toString();
         item.uri = obj.value(QStringLiteral("uri")).toString();
         item.localPath = obj.value(QStringLiteral("localPath")).toString();
+        item.thumbnailPath = obj.value(QStringLiteral("thumbnailPath")).toString();
+        if (item.thumbnailPath.isEmpty() && !item.localPath.isEmpty()) {
+            item.thumbnailPath = resolveImageThumbnailPath(QFileInfo(item.localPath));
+        } else if (!item.thumbnailPath.isEmpty() && !QFileInfo::exists(item.thumbnailPath)) {
+            item.thumbnailPath.clear();
+        }
         item.kind = obj.value(QStringLiteral("kind")).toString();
         item.addedAt = obj.value(QStringLiteral("addedAt")).toInteger();
         if (!item.uri.isEmpty()) {
@@ -292,6 +336,7 @@ void FileShelfModel::saveToDisk() const
         obj.insert(QStringLiteral("name"), item.name);
         obj.insert(QStringLiteral("uri"), item.uri);
         obj.insert(QStringLiteral("localPath"), item.localPath);
+        obj.insert(QStringLiteral("thumbnailPath"), item.thumbnailPath);
         obj.insert(QStringLiteral("kind"), item.kind);
         obj.insert(QStringLiteral("addedAt"), item.addedAt);
         arr.append(obj);

@@ -14,6 +14,7 @@ struct ShelfItem {
     QString name;
     QString uri;
     QString localPath;
+    QString thumbnailPath;
     QString kind;
     qint64 addedAt{0};
 };
@@ -34,6 +35,7 @@ public:
         NameRole = Qt::UserRole + 1,
         UriRole,
         LocalPathRole,
+        ThumbnailPathRole,
         KindRole,
         AddedAtRole,
     };

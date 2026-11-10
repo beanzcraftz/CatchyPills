@@ -130,21 +130,32 @@ Item {
                     required property int index
                     required property string name
                     required property string uri
+                    required property string thumbnailPath
                     required property string kind
                     width: shelfList.width
-                    height: 40
+                    height: 48
                     radius: 10
                     color: rowHover.hovered ? Qt.rgba(1, 1, 1, 0.10) : Qt.rgba(1, 1, 1, 0.06)
                     border.width: 1
                     border.color: Qt.rgba(1, 1, 1, 0.08)
 
+                    function toFileUrl(path) {
+                        if (!path || path.length === 0) {
+                            return ""
+                        }
+                        if (path.indexOf("://") !== -1) {
+                            return path
+                        }
+                        return "file://" + path.split("/").map(encodeURIComponent).join("/")
+                    }
+
                     HoverHandler { id: rowHover }
 
                     RowLayout {
                         anchors.fill: parent
-                        anchors.leftMargin: 10
+                        anchors.leftMargin: 8
                         anchors.rightMargin: 8
-                        spacing: 8
+                        spacing: 10
 
                         Item {
                             Layout.fillWidth: true
@@ -152,15 +163,46 @@ Item {
 
                             RowLayout {
                                 anchors.fill: parent
-                                spacing: 8
+                                spacing: 10
 
-                                Label {
-                                    color: shelfItemDelegate.kind === "DIR"
-                                           ? "#fbbf24"
-                                           : (shelfItemDelegate.kind === "TEXT" ? "#c4b5fd" : "#34d399")
-                                    font.pixelSize: 10
-                                    font.bold: true
-                                    text: shelfItemDelegate.kind
+                                Rectangle {
+                                    Layout.alignment: Qt.AlignVCenter
+                                    implicitWidth: 36
+                                    implicitHeight: 36
+                                    radius: 8
+                                    clip: true
+                                    color: thumbImage.visible
+                                           ? Qt.rgba(0, 0, 0, 0.35)
+                                           : (shelfItemDelegate.kind === "DIR"
+                                              ? Qt.rgba(0.98, 0.75, 0.14, 0.16)
+                                              : (shelfItemDelegate.kind === "TEXT"
+                                                 ? Qt.rgba(0.65, 0.55, 0.98, 0.18)
+                                                 : Qt.rgba(0.20, 0.83, 0.60, 0.14)))
+                                    border.width: 1
+                                    border.color: Qt.rgba(1, 1, 1, 0.12)
+
+                                    Image {
+                                        id: thumbImage
+                                        anchors.fill: parent
+                                        asynchronous: true
+                                        fillMode: Image.PreserveAspectCrop
+                                        sourceSize.width: 64
+                                        sourceSize.height: 64
+                                        source: shelfItemDelegate.toFileUrl(shelfItemDelegate.thumbnailPath)
+                                        visible: shelfItemDelegate.thumbnailPath.length > 0
+                                                 && status === Image.Ready
+                                    }
+
+                                    Label {
+                                        anchors.centerIn: parent
+                                        visible: !thumbImage.visible
+                                        color: shelfItemDelegate.kind === "DIR"
+                                               ? "#fbbf24"
+                                               : (shelfItemDelegate.kind === "TEXT" ? "#c4b5fd" : "#34d399")
+                                        font.pixelSize: 9
+                                        font.bold: true
+                                        text: shelfItemDelegate.kind
+                                    }
                                 }
 
                                 Label {
