@@ -1,0 +1,12 @@
+[Desktop Entry]
+Name=CatchyPills
+GenericName=Dynamic Island, Clipboard & Screen Capture Suite
+Comment=Floating Wayland island for media, clipboard history, fast file search, and screen capture
+Exec=catchypills
+Icon=catchypills
+Type=Application
+StartupNotify=false
+Categories=Utility;Graphics;
+# Required by KWin 6 to permit silent ScreenShot2 capture without OS portal prompts.
+X-KDE-DBUS-Restricted-Interfaces=org.kde.KWin.ScreenShot2
+X-KDE-Wayland-Interfaces=org_kde_plasma_window_management

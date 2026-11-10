@@ -1,0 +1,77 @@
+cmake_minimum_required(VERSION 3.24)
+
+project(CatchyPills
+    VERSION 0.1.0
+    DESCRIPTION "Dynamic floating island, clipboard/search hub, and Wayland capture suite for KDE Plasma 6"
+    LANGUAGES CXX
+)
+
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
+include(GNUInstallDirs)
+
+# Core Qt6 modules: Widgets is included as required transitively by KF6::GlobalAccel.
+find_package(Qt6 REQUIRED COMPONENTS
+    Core
+    Gui
+    Widgets
+    Qml
+    Quick
+    DBus
+)
+
+# Sets up AUTOMOC/AUTORCC, QML tooling policies, and Wayland-friendly Qt defaults.
+qt_standard_project_setup(REQUIRES 6.5)
+
+# KDE Frameworks 6 & Plasma 6 Wayland integration libraries.
+find_package(KF6WindowSystem REQUIRED)
+find_package(KF6GlobalAccel REQUIRED)
+find_package(LayerShellQt REQUIRED)
+find_package(KPipeWire REQUIRED)
+
+qt_add_executable(catchypills
+    src/main.cpp
+    src/wayland/LayerSurfaceController.hpp
+    src/wayland/LayerSurfaceController.cpp
+)
+
+qt_add_qml_module(catchypills
+    URI CatchyPills
+    VERSION 1.0
+    QML_FILES
+        src/ui/IslandWindow.qml
+)
+
+# Note exact imported target names on KDE Plasma 6 / CachyOS:
+# - LayerShellQt provides LayerShellQt::Interface
+# - KPipeWire provides K::KPipeWire, K::KPipeWireRecord, and K::KPipeWireDmaBuf
+target_link_libraries(catchypills PRIVATE
+    Qt6::Core
+    Qt6::Gui
+    Qt6::Widgets
+    Qt6::Qml
+    Qt6::Quick
+    Qt6::DBus
+    KF6::WindowSystem
+    KF6::GlobalAccel
+    LayerShellQt::Interface
+    K::KPipeWire
+    K::KPipeWireRecord
+    K::KPipeWireDmaBuf
+)
+
+target_compile_options(catchypills PRIVATE
+    -Wall
+    -Wextra
+    -Wpedantic
+)
+
+install(TARGETS catchypills
+    RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
+)
+
+install(FILES packaging/io.hearnelabs.CatchyPills.desktop
+    DESTINATION "${CMAKE_INSTALL_DATADIR}/applications"
+)

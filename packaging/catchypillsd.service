@@ -1,0 +1,14 @@
+[Unit]
+Description=CatchyPills Background Clipboard & File Indexer Daemon
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+Type=dbus
+BusName=io.hearnelabs.CatchyPillsDaemon
+ExecStart=/usr/bin/catchypillsd
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=graphical-session.target

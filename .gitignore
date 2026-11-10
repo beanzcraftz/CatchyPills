@@ -1,0 +1,25 @@
+# CMake & Ninja build artifacts
+build/
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+build.ninja
+.ninja_deps
+.ninja_log
+
+# Rust / Cargo build artifacts
+daemon/target/
+daemon/Cargo.lock
+
+# Arch makepkg artifacts
+packaging/arch/pkg/
+packaging/arch/src/
+*.pkg.tar*
+
+# IDEs & Editors
+.vscode/
+.idea/
+*.user
+*.swp
+*~

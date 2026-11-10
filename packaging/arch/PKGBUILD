@@ -1,0 +1,65 @@
+# Maintainer: HearneLabs <contact@hearnelabs.com>
+pkgname=catchypills
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="Native Wayland Dynamic Island, clipboard/search daemon, and screen capture suite for KDE Plasma 6"
+arch=('x86_64')
+url="https://github.com/hearnelabs/CatchyPills"
+license=('GPL-3.0-or-later')
+
+depends=(
+    'qt6-base'
+    'qt6-declarative'
+    'qt6-wayland'
+    'layer-shell-qt'
+    'kpipewire'
+    'kwindowsystem'
+    'kglobalaccel'
+    'ffmpeg'
+    'libpipewire'
+    'wayland'
+    'xdg-desktop-portal'
+    'xdg-desktop-portal-kde'
+)
+makedepends=(
+    'cmake'
+    'ninja'
+    'extra-cmake-modules'
+    'rust'
+    'cargo'
+    'pkgconf'
+)
+optdepends=(
+    'tesseract: OCR text extraction from region captures'
+    'wl-clipboard: fallback CLI clipboard compatibility'
+)
+source=()
+
+build() {
+    cd "$startdir/../.."
+
+    # 1. Build C++20 / Qt6 / LayerShellQt frontend
+    cmake -B build -G Ninja \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_INSTALL_PREFIX=/usr \
+        -Wno-dev
+    cmake --build build
+
+    # 2. Build Rust background daemon (clipboard ext-data-control-v1 + file indexer)
+    # Note: add --locked once daemon/Cargo.lock is generated and committed.
+    pushd daemon >/dev/null
+    export CARGO_TARGET_DIR="$PWD/target"
+    cargo build --release
+    popd >/dev/null
+}
+
+package() {
+    cd "$startdir/../.."
+
+    # Installs /usr/bin/catchypills and /usr/share/applications/io.hearnelabs.CatchyPills.desktop
+    DESTDIR="$pkgdir" cmake --install build
+
+    # Install Rust daemon binary and systemd --user unit
+    install -Dm755 "daemon/target/release/catchypillsd" "$pkgdir/usr/bin/catchypillsd"
+    install -Dm644 "packaging/catchypillsd.service" "$pkgdir/usr/lib/systemd/user/catchypillsd.service"
+}

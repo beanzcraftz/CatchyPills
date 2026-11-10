@@ -1,0 +1,31 @@
+[package]
+name = "catchypillsd"
+version = "0.1.0"
+edition = "2024"
+description = "Background clipboard watcher and Everything-speed file indexer daemon for CatchyPills"
+license = "GPL-3.0-or-later"
+
+[dependencies]
+# Wayland background clipboard monitoring via ext-data-control-v1 (supported by KWin 6.8+).
+# Note: wayland-protocols 0.32 pairs with wayland-client 0.31.
+wayland-client = "0.31"
+wayland-protocols = { version = "0.32", features = ["client", "staging"] }
+
+# Persistence for clipboard history & cached file search metadata.
+rusqlite = { version = "0.41", features = ["bundled"] }
+
+# Parallel filesystem traversal, inotify watching, and fuzzy ranking ("Everything"-equivalent).
+ignore = "0.4"
+notify = "8"
+nucleo = "0.5"
+
+# Local Session D-Bus IPC with the C++20/Qt6 CatchyPills frontend.
+zbus = { version = "5", default-features = false, features = ["tokio"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "signal"] }
+serde = { version = "1", features = ["derive"] }
+
+[profile.release]
+lto = true
+codegen-units = 1
+opt-level = 3
+strip = true
