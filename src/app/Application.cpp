@@ -3,6 +3,8 @@
 #include "ConfigManager.hpp"
 #include "core/DaemonClient.hpp"
 #include "modules/capture/CaptureCoordinator.hpp"
+#include "modules/media/MprisController.hpp"
+#include "modules/notes/NotesModel.hpp"
 #include "modules/shelf/FileShelfModel.hpp"
 #include "wayland/LayerSurfaceController.hpp"
 
@@ -14,6 +16,7 @@
 #include <QDBusPendingCallWatcher>
 #include <QDBusPendingReply>
 #include <QDBusServiceWatcher>
+#include <QDesktopServices>
 #include <QIcon>
 #include <QMenu>
 #include <QPainter>
@@ -24,6 +27,8 @@
 #include <QQuickWindow>
 #include <QSystemTrayIcon>
 #include <QTimer>
+#include <QUrl>
+#include <QUrlQuery>
 
 namespace catchypills::app {
 
@@ -65,6 +70,8 @@ bool Application::initialize()
     m_configManager = new ConfigManager(this);
     m_imageProvider = new capture::CaptureImageProvider();
     m_daemonClient = new core::DaemonClient(this);
+    m_mprisController = new media::MprisController(this);
+    m_notesModel = new notes::NotesModel(this);
     m_fileShelfModel = new shelf::FileShelfModel(this);
     m_captureCoordinator = new capture::CaptureCoordinator(m_imageProvider, this);
     m_islandLayer = new wayland::LayerSurfaceController(nullptr, this);
@@ -98,6 +105,8 @@ bool Application::initialize()
     m_engine->rootContext()->setContextProperty(QStringLiteral("appController"), this);
     m_engine->rootContext()->setContextProperty(QStringLiteral("configManager"), m_configManager);
     m_engine->rootContext()->setContextProperty(QStringLiteral("daemonClient"), m_daemonClient);
+    m_engine->rootContext()->setContextProperty(QStringLiteral("mprisController"), m_mprisController);
+    m_engine->rootContext()->setContextProperty(QStringLiteral("notesModel"), m_notesModel);
     m_engine->rootContext()->setContextProperty(QStringLiteral("fileShelfModel"), m_fileShelfModel);
     m_engine->rootContext()->setContextProperty(QStringLiteral("captureCoordinator"), m_captureCoordinator);
     m_engine->rootContext()->setContextProperty(QStringLiteral("layerController"), m_islandLayer);
@@ -192,6 +201,20 @@ void Application::toggleIslandVisible()
         m_islandWindow->show();
         m_islandWindow->raise();
     }
+}
+
+void Application::openWebSearch(const QString &query)
+{
+    const QString trimmed = query.trimmed();
+    if (trimmed.isEmpty()) {
+        return;
+    }
+
+    QUrl url(QStringLiteral("https://duckduckgo.com/"));
+    QUrlQuery params;
+    params.addQueryItem(QStringLiteral("q"), trimmed);
+    url.setQuery(params);
+    QDesktopServices::openUrl(url);
 }
 
 void Application::applyDisplaySettings()

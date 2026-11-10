@@ -10,11 +10,12 @@ import QtQuick.Layouts
 Item {
     id: root
 
-    property int activeTab: 0 // 0 = Clipboard, 1 = File Shelf, 2 = Search, 3 = Capture
-    readonly property bool searchInputFocused: searchPaletteView.inputFocused
+    property int activeTab: 0 // 0 = Clipboard, 1 = Shelf, 2 = Media, 3 = Notes, 4 = Search, 5 = Capture
+    readonly property bool searchInputFocused: searchPaletteView.inputFocused || notesView.inputFocused
     readonly property bool shelfContainsDrag: fileShelfView.containsDrag
 
     signal collapseRequested()
+    signal collapseImmediatelyRequested()
     signal shelfDropCompleted()
     signal shelfDragHoverChanged()
 
@@ -23,7 +24,7 @@ Item {
     }
 
     function focusSearch() {
-        activeTab = 2
+        activeTab = 4
         searchPaletteView.focusInput()
     }
 
@@ -107,14 +108,16 @@ Item {
         // Glassmorphic Tab Strip + Capture Status
         RowLayout {
             Layout.fillWidth: true
-            spacing: 6
+            spacing: 5
 
             Repeater {
                 model: [
-                    { label: "Clipboard" },
-                    { label: "Shelf" },
-                    { label: "Search" },
-                    { label: "Capture" }
+                    { label: "Clipboard", tip: "Recent clipboard history captured securely over Wayland" },
+                    { label: "Shelf", tip: "Temporary drop inbox for files, thumbnails & URLs" },
+                    { label: "Media", tip: "SpotiBar MPRIS2 playback controls & animated equalizer" },
+                    { label: "Notes", tip: "Quick persistent SQLite To-Do notes & thoughts" },
+                    { label: "Search", tip: "Search indexed local files or query DuckDuckGo on the web" },
+                    { label: "Capture", tip: "OmniShot region screenshots, annotations & screen recording" }
                 ]
 
                 delegate: Rectangle {
@@ -123,7 +126,7 @@ Item {
                     required property var modelData
                     readonly property bool selected: root.activeTab === index
 
-                    implicitWidth: tabLabel.implicitWidth + 20
+                    implicitWidth: tabLabel.implicitWidth + 16
                     height: 30
                     radius: 15
                     color: selected
@@ -135,6 +138,10 @@ Item {
                                   : Qt.rgba(1, 1, 1, 0.10)
 
                     HoverHandler { id: tabHover }
+
+                    ToolTip.visible: tabHover.hovered
+                    ToolTip.delay: 450
+                    ToolTip.text: tabButton.modelData.tip
 
                     Label {
                         id: tabLabel
@@ -153,6 +160,10 @@ Item {
                             if (tabButton.index === 0) {
                                 daemonClient.refreshClips()
                             } else if (tabButton.index === 2) {
+                                mprisController.refresh()
+                            } else if (tabButton.index === 3) {
+                                notesView.focusInput()
+                            } else if (tabButton.index === 4) {
                                 searchPaletteView.focusInput()
                             }
                         }
@@ -160,13 +171,13 @@ Item {
                 }
             }
 
-            Item { Layout.fillWidth: true }
-
             Label {
+                Layout.fillWidth: true
+                Layout.minimumWidth: 40
+                horizontalAlignment: Text.AlignRight
                 color: "#94a3b8"
                 font.pixelSize: 11
                 elide: Text.ElideRight
-                Layout.maximumWidth: 160
                 text: captureCoordinator.lastStatus
             }
 
@@ -179,6 +190,10 @@ Item {
                 border.color: Qt.rgba(1, 1, 1, 0.12)
 
                 HoverHandler { id: gearHover }
+
+                ToolTip.visible: gearHover.hovered
+                ToolTip.delay: 450
+                ToolTip.text: "Open CatchyPills settings"
 
                 Label {
                     anchors.centerIn: parent
@@ -213,17 +228,37 @@ Item {
                 onDragHoverChanged: root.shelfDragHoverChanged()
             }
 
-            // 2. SearchPaletteView
-            SearchPaletteView {
-                id: searchPaletteView
+            // 2. SpotiBar MediaView
+            MediaView {
+                id: mediaView
+            }
+
+            // 3. Persistent NotesView
+            NotesView {
+                id: notesView
                 onCollapseRequested: root.collapseRequested()
             }
 
-            // 3. OmniShot Capture & KPipeWire Recording Controls
+            // 4. Unified SearchPaletteView (Local Files | Web Search)
+            SearchPaletteView {
+                id: searchPaletteView
+                onCollapseRequested: root.collapseRequested()
+                onCollapseImmediatelyRequested: root.collapseImmediatelyRequested()
+            }
+
+            // 5. OmniShot Capture & KPipeWire Recording Controls
             ColumnLayout {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                spacing: 12
+                spacing: 10
+
+                Label {
+                    Layout.fillWidth: true
+                    elide: Text.ElideRight
+                    color: "#94a3b8"
+                    font.pixelSize: 11
+                    text: "OmniShot Capture • Region snip, annotation canvas, and screen recording"
+                }
 
                 GridLayout {
                     Layout.fillWidth: true

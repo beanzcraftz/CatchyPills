@@ -42,6 +42,7 @@ public:
     Q_INVOKABLE void refreshClips(int limit = 25);
     Q_INVOKABLE void searchFiles(const QString &query, int limit = 25);
     Q_INVOKABLE void setClipboardPaused(bool paused);
+    Q_INVOKABLE void copyClipText(const QString &text);
 
 Q_SIGNALS:
     void latestClipPreviewChanged();

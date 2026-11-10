@@ -20,6 +20,7 @@ find_package(Qt6 REQUIRED COMPONENTS
     Qml
     Quick
     DBus
+    Sql
 )
 
 # Sets up AUTOMOC/AUTORCC, QML tooling policies, and Wayland-friendly Qt defaults.
@@ -44,6 +45,10 @@ qt_add_executable(catchypills
     src/core/DaemonClient.cpp
     src/modules/capture/CaptureCoordinator.hpp
     src/modules/capture/CaptureCoordinator.cpp
+    src/modules/media/MprisController.hpp
+    src/modules/media/MprisController.cpp
+    src/modules/notes/NotesModel.hpp
+    src/modules/notes/NotesModel.cpp
     src/modules/shelf/FileShelfModel.hpp
     src/modules/shelf/FileShelfModel.cpp
     src/wayland/LayerSurfaceController.hpp
@@ -59,6 +64,8 @@ qt_add_qml_module(catchypills
         src/ui/components/ExpandedDashboard.qml
         src/ui/components/ClipboardView.qml
         src/ui/components/FileShelfView.qml
+        src/ui/components/MediaView.qml
+        src/ui/components/NotesView.qml
         src/ui/components/SearchPaletteView.qml
         src/ui/capture/CaptureOverlay.qml
         src/ui/capture/AnnotationCanvas.qml
@@ -79,6 +86,7 @@ target_link_libraries(catchypills PRIVATE
     Qt6::Qml
     Qt6::Quick
     Qt6::DBus
+    Qt6::Sql
     KF6::WindowSystem
     KF6::GlobalAccel
     LayerShellQt::Interface

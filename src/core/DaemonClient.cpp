@@ -1,11 +1,13 @@
 #include "DaemonClient.hpp"
 
+#include <QClipboard>
 #include <QDBusConnection>
 #include <QDBusMessage>
 #include <QDBusMetaType>
 #include <QDBusPendingCall>
 #include <QDBusPendingCallWatcher>
 #include <QDBusPendingReply>
+#include <QGuiApplication>
 #include <QVariantMap>
 
 QDBusArgument &operator<<(QDBusArgument &arg, const catchypills::core::ClipboardEntryDto &item)
@@ -157,6 +159,16 @@ void DaemonClient::setClipboardPaused(bool paused)
     msg << paused;
 
     QDBusConnection::sessionBus().asyncCall(msg);
+}
+
+void DaemonClient::copyClipText(const QString &text)
+{
+    if (text.isEmpty()) {
+        return;
+    }
+    if (QClipboard *clipboard = QGuiApplication::clipboard()) {
+        clipboard->setText(text);
+    }
 }
 
 } // namespace catchypills::core

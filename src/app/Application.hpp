@@ -20,6 +20,14 @@ namespace catchypills::core {
 class DaemonClient;
 }
 
+namespace catchypills::media {
+class MprisController;
+}
+
+namespace catchypills::notes {
+class NotesModel;
+}
+
 namespace catchypills::shelf {
 class FileShelfModel;
 }
@@ -53,6 +61,7 @@ public:
 
     Q_INVOKABLE void openSettings();
     Q_INVOKABLE void toggleIslandVisible();
+    Q_INVOKABLE void openWebSearch(const QString &query);
 
 Q_SIGNALS:
     void daemonOnlineChanged(bool online);
@@ -76,6 +85,8 @@ private:
     ConfigManager *m_configManager{nullptr};
     QQmlApplicationEngine *m_engine{nullptr};
     core::DaemonClient *m_daemonClient{nullptr};
+    media::MprisController *m_mprisController{nullptr};
+    notes::NotesModel *m_notesModel{nullptr};
     shelf::FileShelfModel *m_fileShelfModel{nullptr};
     capture::CaptureImageProvider *m_imageProvider{nullptr};
     capture::CaptureCoordinator *m_captureCoordinator{nullptr};

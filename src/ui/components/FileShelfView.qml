@@ -99,17 +99,18 @@ Item {
 
             RowLayout {
                 Layout.fillWidth: true
-                visible: fileShelfModel.count > 0
                 spacing: 8
 
                 Label {
                     Layout.fillWidth: true
+                    elide: Text.ElideRight
                     color: "#94a3b8"
                     font.pixelSize: 11
-                    text: fileShelfModel.count + (fileShelfModel.count === 1 ? " item staged (click to copy)" : " items staged (click to copy)")
+                    text: "Drop Inbox • Temporary staging area: Click to copy path, or drag out to any app"
                 }
 
                 Button {
+                    visible: fileShelfModel.count > 0
                     text: "Clear All"
                     implicitHeight: 24
                     font.pixelSize: 11

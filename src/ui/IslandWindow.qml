@@ -318,6 +318,14 @@ Window {
                         collapseDelay.restart()
                     }
                 }
+                onCollapseImmediatelyRequested: {
+                    hoverExpandDelay.stop()
+                    collapseDelay.stop()
+                    pillContainer.state = "collapsed"
+                    if (root.hasLayer) {
+                        layerController.setKeyboardInteractive(false)
+                    }
+                }
                 onShelfDropCompleted: {
                     dragExitLock.stop()
                     root.dragActive = false
