@@ -14,17 +14,6 @@ Window {
     flags: Qt.FramelessWindowHint
 
     readonly property bool hasLayer: typeof layerController !== "undefined" && layerController !== null
-    property bool dragActive: false
-
-    onDragActiveChanged: {
-        if (dragActive) {
-            hoverExpandDelay.stop()
-            collapseDelay.stop()
-        }
-        if (hasLayer) {
-            layerController.setDragActive(dragActive)
-        }
-    }
 
     onVisibleChanged: {
         if (visible) {
@@ -36,19 +25,15 @@ Window {
     Connections {
         target: captureCoordinator
         function onRegionOverlayRequested() {
-            dragExitLock.stop()
             hoverExpandDelay.stop()
-            root.dragActive = false
             pillContainer.state = "collapsed"
             if (root.hasLayer) {
                 layerController.setKeyboardInteractive(false)
             }
         }
         function onCaptureWorkflowFinished() {
-            dragExitLock.stop()
             hoverExpandDelay.stop()
             collapseDelay.stop()
-            root.dragActive = false
             pillContainer.state = "collapsed"
             if (root.hasLayer) {
                 layerController.setKeyboardInteractive(false)
@@ -56,10 +41,8 @@ Window {
         }
         function onSaveDialogOpenChanged(open) {
             if (open) {
-                dragExitLock.stop()
                 hoverExpandDelay.stop()
                 collapseDelay.stop()
-                root.dragActive = false
                 pillContainer.state = "collapsed"
                 if (root.hasLayer) {
                     layerController.setKeyboardInteractive(false)
@@ -76,54 +59,9 @@ Window {
         repeat: false
     }
 
-    // Debounce Wayland DropArea exit transitions so animation geometry shifts
-    // and inner FileShelfView DropArea handoffs never flicker dragActive off.
-    Timer {
-        id: dragExitLock
-        interval: 140
-        repeat: false
-        onTriggered: {
-            if (!masterDropArea.containsDrag && !dashboard.shelfContainsDrag) {
-                root.dragActive = false
-                if (!islandHover.hovered && !dashboard.searchInputFocused) {
-                    collapseDelay.restart()
-                }
-            }
-        }
-    }
-
-    // Master Wayland DropArea spanning the entire 760x460 canvas so external file
-    // drags arriving on the collapsed pill lock dragActive = true and unlock the
-    // full surface mask without wl_data_device.leave collapse loops.
-    DropArea {
-        id: masterDropArea
+    Item {
+        id: rootCanvas
         anchors.fill: parent
-
-        onEntered: function(drag) {
-            drag.acceptProposedAction()
-            dragExitLock.stop()
-            hoverExpandDelay.stop()
-            collapseDelay.stop()
-            root.dragActive = true
-            dashboard.activeTab = 1
-            pillContainer.state = "expanded"
-        }
-
-        onPositionChanged: function(drag) {
-            drag.acceptProposedAction()
-        }
-
-        onExited: {
-            if (!dashboard.shelfContainsDrag) {
-                dragExitLock.restart()
-            }
-        }
-
-        onDropped: function(drop) {
-            dragExitLock.stop()
-            dashboard.acceptShelfDrop(drop)
-            root.dragActive = false
-        }
 
         RectangularShadow {
             id: pillShadow
@@ -134,7 +72,7 @@ Window {
             offset: Qt.vector2d(0, 5)
             blur: pillContainer.state === "expanded" ? 22 : 14
             spread: 1
-            color: root.dragActive ? Qt.rgba(0.0, 0.90, 0.64, 0.26) : Qt.rgba(0, 0, 0, 0.58)
+            color: Qt.rgba(0, 0, 0, 0.58)
             topLeftRadius: pillContainer.topLeftRadius
             topRightRadius: pillContainer.topRightRadius
             bottomLeftRadius: pillContainer.bottomLeftRadius
@@ -146,9 +84,10 @@ Window {
             state: "collapsed"
             onStateChanged: if (state === "collapsed") dashboard.closePopups()
 
+            readonly property int expandedWidth: configManager.enableWorklog ? 732 : 660
             readonly property int collapsedX: root.hasLayer ? layerController.pillCanvasX : 220
             readonly property int collapsedY: root.hasLayer ? layerController.pillCanvasY : 0
-            readonly property int expandedX: Math.max(0, Math.min(collapsedX - Math.round((660 - collapsedHud.implicitWidth) / 2), root.width - 660))
+            readonly property int expandedX: Math.max(0, Math.min(collapsedX - Math.round((expandedWidth - collapsedHud.implicitWidth) / 2), root.width - expandedWidth))
             readonly property int expandedY: Math.min(collapsedY, root.height - 390)
             readonly property bool detachedFromTop: root.hasLayer && layerController.pillY > 4
 
@@ -173,7 +112,7 @@ Window {
             border.width: notesModel.hasActiveAlarm ? 2 : 1
             border.color: notesModel.hasActiveAlarm
                           ? alarmPulseColor
-                          : ((root.dragActive || state === "expanded")
+                          : (state === "expanded"
                              ? Qt.rgba(0.0, 0.90, 0.64, 0.50)
                              : Qt.rgba(0.0, 0.90, 0.64, 0.30))
             clip: true
@@ -201,12 +140,12 @@ Window {
                 onHoveredChanged: {
                     if (hovered) {
                         collapseDelay.stop()
-                        if (!collapsedHud.repositioning && !root.dragActive && pillContainer.state !== "expanded") {
+                        if (!collapsedHud.repositioning && pillContainer.state !== "expanded") {
                             hoverExpandDelay.restart()
                         }
                     } else {
                         hoverExpandDelay.stop()
-                        if (!root.dragActive && !collapsedHud.repositioning) {
+                        if (!collapsedHud.repositioning) {
                             collapseDelay.restart()
                         }
                     }
@@ -218,7 +157,7 @@ Window {
                 id: hoverExpandDelay
                 interval: 180
                 onTriggered: {
-                    if (islandHover.hovered && !collapsedHud.repositioning && !root.dragActive) {
+                    if (islandHover.hovered && !collapsedHud.repositioning) {
                         pillContainer.state = "expanded"
                         if (root.hasLayer) {
                             layerController.setKeyboardInteractive(true)
@@ -234,8 +173,7 @@ Window {
                     if (!islandHover.hovered
                         && !dashboard.searchInputFocused
                         && !dashboard.weatherPopupOpen
-                        && !collapsedHud.repositioning
-                        && !root.dragActive) {
+                        && !collapsedHud.repositioning) {
                         dashboard.closePopups()
                         pillContainer.state = "collapsed"
                         if (root.hasLayer) {
@@ -264,7 +202,7 @@ Window {
                     PropertyChanges {
                         pillContainer.x: pillContainer.expandedX
                         pillContainer.y: pillContainer.expandedY
-                        pillContainer.width: 660
+                        pillContainer.width: pillContainer.expandedWidth
                         pillContainer.height: 390
                         pillContainer.topLeftRadius: pillContainer.detachedFromTop ? 22 : 0
                         pillContainer.topRightRadius: pillContainer.detachedFromTop ? 22 : 0
@@ -312,7 +250,6 @@ Window {
                 opacity: pillContainer.state === "collapsed" ? 1.0 : 0.0
                 recordingActive: captureCoordinator.recording
                 daemonOnline: appController.daemonOnline
-                externalDragActive: root.dragActive
                 alarmActive: notesModel.hasActiveAlarm
                 alarmText: notesModel.activeAlarmText
 
@@ -324,9 +261,6 @@ Window {
                     collapseDelay.stop()
                 }
                 onDragStarted: {
-                    if (root.dragActive) {
-                        return
-                    }
                     hoverExpandDelay.stop()
                     collapseDelay.stop()
                     pillContainer.state = "collapsed"
@@ -335,7 +269,7 @@ Window {
                     }
                 }
                 onDragMoved: function(dx, dy, anchorX, anchorY) {
-                    if (!root.hasLayer || root.dragActive || dragThrottle.running) {
+                    if (!root.hasLayer || dragThrottle.running) {
                         return
                     }
                     var stepX = Math.round(dx)
@@ -368,7 +302,7 @@ Window {
                     }
                 }
                 onClicked: {
-                    if (collapsedHud.repositioning || root.dragActive) {
+                    if (collapsedHud.repositioning) {
                         return
                     }
                     hoverExpandDelay.stop()
@@ -385,32 +319,13 @@ Window {
                 anchors.fill: parent
                 visible: pillContainer.height >= 96
                 opacity: pillContainer.state === "expanded" ? 1.0 : 0.0
-                onCollapseRequested: {
-                    if (!root.dragActive) {
-                        collapseDelay.restart()
-                    }
-                }
+                onCollapseRequested: collapseDelay.restart()
                 onCollapseImmediatelyRequested: {
                     hoverExpandDelay.stop()
                     collapseDelay.stop()
                     pillContainer.state = "collapsed"
                     if (root.hasLayer) {
                         layerController.setKeyboardInteractive(false)
-                    }
-                }
-                onShelfDropCompleted: {
-                    dragExitLock.stop()
-                    root.dragActive = false
-                }
-                onShelfDragHoverChanged: {
-                    if (masterDropArea.containsDrag || dashboard.shelfContainsDrag) {
-                        dragExitLock.stop()
-                        hoverExpandDelay.stop()
-                        collapseDelay.stop()
-                        root.dragActive = true
-                        pillContainer.state = "expanded"
-                    } else {
-                        dragExitLock.restart()
                     }
                 }
 

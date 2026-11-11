@@ -151,12 +151,12 @@ Window {
             }
 
             // -----------------------------------------------------------------
-            // 2. Clipboard & File Shelf
+            // 2. Clipboard
             // -----------------------------------------------------------------
             GroupBox {
                 id: clipboardGroup
                 Layout.fillWidth: true
-                title: "Clipboard & File Shelf"
+                title: "Clipboard"
 
                 background: Rectangle {
                     y: clipboardGroup.topPadding - clipboardGroup.bottomPadding
@@ -177,37 +177,6 @@ Window {
                         text: "Pause Clipboard Capture"
                         checked: configManager.clipboardPaused
                         onToggled: configManager.clipboardPaused = checked
-                    }
-
-                    RowLayout {
-                        Layout.fillWidth: true
-                        Label {
-                            Layout.preferredWidth: 160
-                            color: "#e2e8f0"
-                            text: "File Shelf Auto-Clear"
-                        }
-                        ComboBox {
-                            id: retentionCombo
-                            Layout.fillWidth: true
-                            readonly property var options: [
-                                { label: "1 Hour", hours: 1 },
-                                { label: "24 Hours", hours: 24 },
-                                { label: "7 Days", hours: 168 },
-                                { label: "Never", hours: 0 }
-                            ]
-                            model: options
-                            textRole: "label"
-                            valueRole: "hours"
-                            currentIndex: {
-                                for (var i = 0; i < options.length; ++i) {
-                                    if (options[i].hours === configManager.shelfRetentionHours) {
-                                        return i
-                                    }
-                                }
-                                return 1
-                            }
-                            onActivated: configManager.shelfRetentionHours = currentValue
-                        }
                     }
                 }
             }

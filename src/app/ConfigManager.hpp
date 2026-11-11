@@ -28,9 +28,8 @@ class ConfigManager final : public QObject
     Q_PROPERTY(int collapseDelayMs READ collapseDelayMs WRITE setCollapseDelayMs NOTIFY collapseDelayMsChanged)
     Q_PROPERTY(bool autoHideFullscreen READ autoHideFullscreen WRITE setAutoHideFullscreen NOTIFY autoHideFullscreenChanged)
 
-    // Clipboard & File Shelf
+    // Clipboard
     Q_PROPERTY(bool clipboardPaused READ clipboardPaused WRITE setClipboardPaused NOTIFY clipboardPausedChanged)
-    Q_PROPERTY(int shelfRetentionHours READ shelfRetentionHours WRITE setShelfRetentionHours NOTIFY shelfRetentionHoursChanged)
 
     // OmniShot Capture & System
     Q_PROPERTY(QString screenshotsDir READ screenshotsDir WRITE setScreenshotsDir NOTIFY screenshotsDirChanged)
@@ -76,9 +75,6 @@ public:
     bool clipboardPaused() const noexcept { return m_clipboardPaused; }
     void setClipboardPaused(bool paused);
 
-    int shelfRetentionHours() const noexcept { return m_shelfRetentionHours; }
-    void setShelfRetentionHours(int hours);
-
     QString screenshotsDir() const { return m_screenshotsDir; }
     void setScreenshotsDir(const QString &path);
     Q_INVOKABLE void setScreenshotsDirFromUrl(const QUrl &url);
@@ -118,7 +114,6 @@ Q_SIGNALS:
     void collapseDelayMsChanged(int delayMs);
     void autoHideFullscreenChanged(bool enabled);
     void clipboardPausedChanged(bool paused);
-    void shelfRetentionHoursChanged(int hours);
     void screenshotsDirChanged(const QString &path);
     void autoCopyCaptureChanged(bool enabled);
     void startWithSystemChanged(bool enabled);
@@ -148,7 +143,6 @@ private:
     int m_collapseDelayMs{220};
     bool m_autoHideFullscreen{true};
     bool m_clipboardPaused{false};
-    int m_shelfRetentionHours{24};
     QString m_screenshotsDir;
     bool m_autoCopyCapture{true};
     double m_weatherLatitude{-27.82};

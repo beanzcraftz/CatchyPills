@@ -48,18 +48,22 @@ qt_add_executable(catchypills
     src/core/DaemonClient.cpp
     src/modules/capture/CaptureCoordinator.hpp
     src/modules/capture/CaptureCoordinator.cpp
+    src/modules/iot/IoTController.hpp
+    src/modules/iot/IoTController.cpp
     src/modules/itsm/ITSMController.hpp
     src/modules/itsm/ITSMController.cpp
     src/modules/media/MprisController.hpp
     src/modules/media/MprisController.cpp
     src/modules/notes/NotesModel.hpp
     src/modules/notes/NotesModel.cpp
-    src/modules/shelf/FileShelfModel.hpp
-    src/modules/shelf/FileShelfModel.cpp
+    src/modules/solar/SolarController.hpp
+    src/modules/solar/SolarController.cpp
     src/modules/sysmon/SysMonController.hpp
     src/modules/sysmon/SysMonController.cpp
     src/modules/weather/WeatherController.hpp
     src/modules/weather/WeatherController.cpp
+    src/modules/worklog/WorklogController.hpp
+    src/modules/worklog/WorklogController.cpp
     src/wayland/LayerSurfaceController.hpp
     src/wayland/LayerSurfaceController.cpp
 )
@@ -72,7 +76,7 @@ qt_add_qml_module(catchypills
         src/ui/components/CollapsedPill.qml
         src/ui/components/ExpandedDashboard.qml
         src/ui/components/ClipboardView.qml
-        src/ui/components/FileShelfView.qml
+        src/ui/components/IoTView.qml
         src/ui/components/ITSMView.qml
         src/ui/components/MediaView.qml
         src/ui/components/NotesView.qml

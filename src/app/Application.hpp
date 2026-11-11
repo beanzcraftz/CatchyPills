@@ -20,6 +20,10 @@ namespace catchypills::core {
 class DaemonClient;
 }
 
+namespace catchypills::iot {
+class IoTController;
+}
+
 namespace catchypills::itsm {
 class ITSMController;
 }
@@ -32,8 +36,8 @@ namespace catchypills::notes {
 class NotesModel;
 }
 
-namespace catchypills::shelf {
-class FileShelfModel;
+namespace catchypills::solar {
+class SolarController;
 }
 
 namespace catchypills::sysmon {
@@ -42,6 +46,10 @@ class SysMonController;
 
 namespace catchypills::weather {
 class WeatherController;
+}
+
+namespace catchypills::worklog {
+class WorklogController;
 }
 
 namespace catchypills::wayland {
@@ -97,12 +105,14 @@ private:
     ConfigManager *m_configManager{nullptr};
     QQmlApplicationEngine *m_engine{nullptr};
     core::DaemonClient *m_daemonClient{nullptr};
+    iot::IoTController *m_iotController{nullptr};
     itsm::ITSMController *m_itsmController{nullptr};
     media::MprisController *m_mprisController{nullptr};
     notes::NotesModel *m_notesModel{nullptr};
-    shelf::FileShelfModel *m_fileShelfModel{nullptr};
+    solar::SolarController *m_solarController{nullptr};
     sysmon::SysMonController *m_sysMonController{nullptr};
     weather::WeatherController *m_weatherController{nullptr};
+    worklog::WorklogController *m_worklogController{nullptr};
     capture::CaptureImageProvider *m_imageProvider{nullptr};
     capture::CaptureCoordinator *m_captureCoordinator{nullptr};
     wayland::LayerSurfaceController *m_islandLayer{nullptr};

@@ -47,8 +47,6 @@ ConfigManager::ConfigManager(QObject *parent)
 
     m_clipboardPaused =
         m_settings.value(QStringLiteral("Clipboard/paused"), false).toBool();
-    m_shelfRetentionHours =
-        m_settings.value(QStringLiteral("Shelf/retentionHours"), 24).toInt();
 
     const QString defaultShots =
         QStandardPaths::writableLocation(QStandardPaths::PicturesLocation)
@@ -219,17 +217,6 @@ void ConfigManager::setClipboardPaused(bool paused)
     m_settings.setValue(QStringLiteral("Clipboard/paused"), m_clipboardPaused);
     m_settings.sync();
     Q_EMIT clipboardPausedChanged(m_clipboardPaused);
-}
-
-void ConfigManager::setShelfRetentionHours(int hours)
-{
-    if (m_shelfRetentionHours == hours) {
-        return;
-    }
-    m_shelfRetentionHours = hours;
-    m_settings.setValue(QStringLiteral("Shelf/retentionHours"), m_shelfRetentionHours);
-    m_settings.sync();
-    Q_EMIT shelfRetentionHoursChanged(m_shelfRetentionHours);
 }
 
 void ConfigManager::setScreenshotsDir(const QString &path)

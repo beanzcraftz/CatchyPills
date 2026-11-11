@@ -3,12 +3,14 @@
 #include "ConfigManager.hpp"
 #include "core/DaemonClient.hpp"
 #include "modules/capture/CaptureCoordinator.hpp"
+#include "modules/iot/IoTController.hpp"
 #include "modules/itsm/ITSMController.hpp"
 #include "modules/media/MprisController.hpp"
 #include "modules/notes/NotesModel.hpp"
-#include "modules/shelf/FileShelfModel.hpp"
+#include "modules/solar/SolarController.hpp"
 #include "modules/sysmon/SysMonController.hpp"
 #include "modules/weather/WeatherController.hpp"
+#include "modules/worklog/WorklogController.hpp"
 #include "wayland/LayerSurfaceController.hpp"
 
 #include <QAction>
@@ -73,25 +75,26 @@ bool Application::initialize()
     m_configManager = new ConfigManager(this);
     m_imageProvider = new capture::CaptureImageProvider();
     m_daemonClient = new core::DaemonClient(this);
+    m_iotController = new iot::IoTController(m_configManager, this);
     m_itsmController = new itsm::ITSMController(this);
     m_mprisController = new media::MprisController(this);
     m_notesModel = new notes::NotesModel(this);
-    m_fileShelfModel = new shelf::FileShelfModel(this);
+    m_solarController = new solar::SolarController(m_configManager, this);
     m_sysMonController = new sysmon::SysMonController(this);
     m_weatherController = new weather::WeatherController(this);
+    m_worklogController = new worklog::WorklogController(m_configManager, this);
     m_captureCoordinator = new capture::CaptureCoordinator(m_imageProvider, this);
     m_islandLayer = new wayland::LayerSurfaceController(nullptr, this);
     m_overlayLayer = new wayland::LayerSurfaceController(nullptr, this);
     m_engine = new QQmlApplicationEngine(this);
 
-    m_fileShelfModel->setRetentionHours(m_configManager->shelfRetentionHours());
     m_captureCoordinator->setOutputDirectory(m_configManager->screenshotsDir());
     m_captureCoordinator->setAutoCopyEnabled(m_configManager->autoCopyCapture());
     m_weatherController->setCoordinates(m_configManager->weatherLatitude(),
                                         m_configManager->weatherLongitude());
+    m_solarController->setEnabled(m_configManager->enableSolar());
+    m_worklogController->setEnabled(m_configManager->enableWorklog());
 
-    connect(m_configManager, &ConfigManager::shelfRetentionHoursChanged,
-            m_fileShelfModel, &shelf::FileShelfModel::setRetentionHours);
     connect(m_configManager, &ConfigManager::screenshotsDirChanged,
             m_captureCoordinator, &capture::CaptureCoordinator::setOutputDirectory);
     connect(m_configManager, &ConfigManager::autoCopyCaptureChanged,
@@ -100,6 +103,10 @@ bool Application::initialize()
             m_daemonClient, &core::DaemonClient::setClipboardPaused);
     connect(m_configManager, &ConfigManager::weatherCoordinatesChanged,
             m_weatherController, &weather::WeatherController::setCoordinates);
+    connect(m_configManager, &ConfigManager::enableSolarChanged,
+            m_solarController, &solar::SolarController::setEnabled);
+    connect(m_configManager, &ConfigManager::enableWorklogChanged,
+            m_worklogController, &worklog::WorklogController::setEnabled);
 
     connect(m_configManager, &ConfigManager::targetMonitorChanged,
             this, &Application::applyDisplaySettings);
@@ -116,12 +123,14 @@ bool Application::initialize()
     m_engine->rootContext()->setContextProperty(QStringLiteral("appController"), this);
     m_engine->rootContext()->setContextProperty(QStringLiteral("configManager"), m_configManager);
     m_engine->rootContext()->setContextProperty(QStringLiteral("daemonClient"), m_daemonClient);
+    m_engine->rootContext()->setContextProperty(QStringLiteral("iotController"), m_iotController);
     m_engine->rootContext()->setContextProperty(QStringLiteral("itsmController"), m_itsmController);
     m_engine->rootContext()->setContextProperty(QStringLiteral("mprisController"), m_mprisController);
     m_engine->rootContext()->setContextProperty(QStringLiteral("notesModel"), m_notesModel);
-    m_engine->rootContext()->setContextProperty(QStringLiteral("fileShelfModel"), m_fileShelfModel);
+    m_engine->rootContext()->setContextProperty(QStringLiteral("solarController"), m_solarController);
     m_engine->rootContext()->setContextProperty(QStringLiteral("sysMonController"), m_sysMonController);
     m_engine->rootContext()->setContextProperty(QStringLiteral("weatherController"), m_weatherController);
+    m_engine->rootContext()->setContextProperty(QStringLiteral("worklogController"), m_worklogController);
     m_engine->rootContext()->setContextProperty(QStringLiteral("captureCoordinator"), m_captureCoordinator);
     m_engine->rootContext()->setContextProperty(QStringLiteral("layerController"), m_islandLayer);
     m_engine->rootContext()->setContextProperty(QStringLiteral("overlayLayerController"), m_overlayLayer);

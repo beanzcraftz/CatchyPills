@@ -11,13 +11,17 @@ import QtQuick.Layouts
 Item {
     id: root
 
-    property int activeTab: 0 // 0 = Clipboard, 1 = Shelf, 2 = Media, 3 = Notes, 4 = Search, 5 = Capture, 6 = ITSM
+    property int activeTab: 0 // 0 = Clipboard, 1 = IoT, 2 = Media, 3 = Notes, 4 = Search, 5 = Capture, 6 = ITSM
     readonly property bool searchInputFocused: searchPaletteView.inputFocused || notesView.inputFocused || itsmView.inputFocused
     readonly property bool weatherPopupOpen: forecastPopup.opened
-    readonly property bool shelfContainsDrag: fileShelfView.containsDrag
 
     Connections {
         target: configManager
+        function onEnableIoTChanged() {
+            if (!configManager.enableIoT && root.activeTab === 1) {
+                root.activeTab = 0
+            }
+        }
         function onEnableITSMChanged() {
             if (!configManager.enableITSM && root.activeTab === 6) {
                 root.activeTab = 0
@@ -27,12 +31,6 @@ Item {
 
     signal collapseRequested()
     signal collapseImmediatelyRequested()
-    signal shelfDropCompleted()
-    signal shelfDragHoverChanged()
-
-    function acceptShelfDrop(drop) {
-        return fileShelfView.acceptDrop(drop)
-    }
 
     function closePopups() {
         forecastPopup.close()
@@ -51,12 +49,12 @@ Item {
         // Glassmorphic Floating Tab Strip
         RowLayout {
             Layout.fillWidth: true
-            spacing: 5
+            spacing: 4
 
             Repeater {
                 model: [
                     { label: "Clipboard", tip: "Recent clipboard history captured securely over Wayland" },
-                    { label: "Shelf", tip: "Temporary drop inbox for files, thumbnails & URLs" },
+                    { label: "IoT", tip: "Trigger Alexa & workshop smart device controls" },
                     { label: "Media", tip: "SpotiBar MPRIS2 playback controls & animated equalizer" },
                     { label: "Notes", tip: "Quick persistent SQLite To-Do notes & thoughts" },
                     { label: "Search", tip: "Search indexed local files or query DuckDuckGo on the web" },
@@ -70,8 +68,10 @@ Item {
                     required property var modelData
                     readonly property bool selected: root.activeTab === index
 
-                    visible: index < 6 || configManager.enableITSM
-                    implicitWidth: tabLabel.implicitWidth + 18
+                    visible: (index === 1 && configManager.enableIoT)
+                             || (index === 6 && configManager.enableITSM)
+                             || (index !== 1 && index !== 6)
+                    implicitWidth: tabLabel.implicitWidth + 14
                     implicitHeight: 32
 
                     RectangularShadow {
@@ -137,6 +137,79 @@ Item {
             }
 
             Item { Layout.fillWidth: true }
+
+            // Dual-inverter Solar Telemetry Readout (only when enableSolar is active)
+            Item {
+                id: solarPillItem
+                visible: configManager.enableSolar
+                implicitWidth: solarRow.implicitWidth + 16
+                implicitHeight: 32
+
+                readonly property color telemetryColor:
+                    solarController.exceedingConsumption ? "#00e5a3" : "#f59e0b"
+
+                RectangularShadow {
+                    anchors.fill: solarPill
+                    radius: solarPill.radius
+                    offset: Qt.vector2d(0, 2)
+                    blur: 6
+                    color: Qt.rgba(0, 0, 0, 0.35)
+                }
+
+                Rectangle {
+                    id: solarPill
+                    anchors.fill: parent
+                    radius: 12
+                    color: solarHover.hovered
+                           ? Qt.rgba(1, 1, 1, 0.12)
+                           : Qt.rgba(0.16, 0.16, 0.24, 0.72)
+                    border.width: 1
+                    border.color: solarController.exceedingConsumption
+                                  ? Qt.rgba(0.0, 0.90, 0.64, solarHover.hovered ? 0.65 : 0.35)
+                                  : Qt.rgba(0.96, 0.62, 0.04, solarHover.hovered ? 0.65 : 0.35)
+
+                    HoverHandler { id: solarHover }
+
+                    ToolTip.visible: solarHover.hovered
+                    ToolTip.delay: 300
+                    ToolTip.text: solarController.available
+                                  ? ((solarController.exceedingConsumption ? "Exporting surplus to grid" : "Drawing power from grid")
+                                     + "\nGen: " + solarController.generationText
+                                     + " • Use: " + solarController.consumptionText
+                                     + (solarController.lastUpdatedText !== "" ? ("\nUpdated " + solarController.lastUpdatedText) : ""))
+                                  : (solarController.configured
+                                     ? "Waiting for dual-inverter telemetry...\nClick to retry"
+                                     : "Set SOLAR_API_URL in ~/.config/catchypills/.env")
+
+                    Row {
+                        id: solarRow
+                        anchors.centerIn: parent
+                        spacing: 6
+
+                        Label {
+                            anchors.verticalCenter: parent.verticalCenter
+                            color: solarPillItem.telemetryColor
+                            font.pixelSize: 11
+                            font.weight: Font.DemiBold
+                            text: "☀️ " + solarController.generationText
+                        }
+
+                        Label {
+                            anchors.verticalCenter: parent.verticalCenter
+                            color: solarPillItem.telemetryColor
+                            font.pixelSize: 11
+                            font.weight: Font.DemiBold
+                            text: "🏠 " + solarController.consumptionText
+                        }
+                    }
+
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: solarController.refresh()
+                    }
+                }
+            }
 
             // Cached 30-min Open-Meteo weather badge + 7-day forecast popup
             Item {
@@ -408,23 +481,158 @@ Item {
             }
         }
 
-        // Main Tab Body
-        StackLayout {
+        // Main Content Area (Optional Worklog Sidebar + Tab Stack)
+        RowLayout {
             Layout.fillWidth: true
             Layout.fillHeight: true
-            currentIndex: root.activeTab
+            spacing: 10
 
-            // 0. ClipboardView
-            ClipboardView {
-                id: clipboardView
+            // Bespoke Worklog Punch-Clock Sidebar
+            Rectangle {
+                id: worklogSidebar
+                visible: configManager.enableWorklog
+                Layout.preferredWidth: 152
+                Layout.fillHeight: true
+                radius: 14
+                color: Qt.rgba(0.14, 0.14, 0.22, 0.72)
+                border.width: 1
+                border.color: worklogController.punchedIn
+                              ? Qt.rgba(0.0, 0.90, 0.64, 0.45)
+                              : Qt.rgba(1, 1, 1, 0.10)
+
+                property real nowSecs: Math.floor(Date.now() / 1000)
+
+                function formatElapsed(startEpoch, currentEpoch) {
+                    if (!worklogController.punchedIn || startEpoch <= 0) {
+                        return "00:00:00"
+                    }
+                    var total = Math.max(0, Math.floor(currentEpoch) - startEpoch)
+                    var hrs = Math.floor(total / 3600)
+                    var mins = Math.floor((total % 3600) / 60)
+                    var secs = total % 60
+                    var pad = function(n) { return n < 10 ? "0" + n : "" + n }
+                    return pad(hrs) + ":" + pad(mins) + ":" + pad(secs)
+                }
+
+                Connections {
+                    target: worklogController
+                    function onStateChanged() {
+                        worklogSidebar.nowSecs = Math.floor(Date.now() / 1000)
+                    }
+                }
+
+                Timer {
+                    id: worklogTickTimer
+                    interval: 1000
+                    repeat: true
+                    triggeredOnStart: true
+                    running: configManager.enableWorklog && worklogController.punchedIn
+                    onTriggered: worklogSidebar.nowSecs = Math.floor(Date.now() / 1000)
+                }
+
+                ColumnLayout {
+                    anchors.fill: parent
+                    anchors.margins: 12
+                    spacing: 8
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 6
+
+                        Rectangle {
+                            Layout.preferredWidth: 7
+                            Layout.preferredHeight: 7
+                            radius: 4
+                            color: worklogController.punchedIn ? "#00e5a3" : "#64748b"
+                        }
+
+                        Label {
+                            color: "#94a3b8"
+                            font.pixelSize: 10
+                            font.weight: Font.Bold
+                            font.letterSpacing: 0.8
+                            text: "WORKLOG"
+                        }
+                    }
+
+                    Item { Layout.fillHeight: true }
+
+                    Label {
+                        Layout.fillWidth: true
+                        horizontalAlignment: Text.AlignHCenter
+                        font.family: "monospace"
+                        font.pixelSize: 20
+                        font.weight: Font.Bold
+                        color: worklogController.punchedIn ? "#00e5a3" : "#94a3b8"
+                        text: worklogSidebar.formatElapsed(worklogController.activeStartEpoch, worklogSidebar.nowSecs)
+                    }
+
+                    Label {
+                        Layout.fillWidth: true
+                        horizontalAlignment: Text.AlignHCenter
+                        elide: Text.ElideRight
+                        color: "#cbd5e1"
+                        font.pixelSize: 10
+                        text: worklogController.punchedIn
+                              ? ("In at " + worklogController.startedAtText)
+                              : (worklogController.lastDurationText !== ""
+                                 ? ("Last: " + worklogController.lastDurationText)
+                                 : worklogController.statusText)
+                    }
+
+                    Item { Layout.fillHeight: true }
+
+                    Rectangle {
+                        id: punchBtn
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 38
+                        radius: 10
+                        enabled: !worklogController.busy
+                        color: worklogController.punchedIn
+                               ? (punchMouse.pressed
+                                  ? Qt.rgba(0.96, 0.62, 0.04, 0.30)
+                                  : (punchHover.hovered ? Qt.rgba(0.96, 0.62, 0.04, 0.22) : Qt.rgba(0.96, 0.62, 0.04, 0.14)))
+                               : (punchMouse.pressed ? Qt.darker("#00e5a3", 1.12) : (punchHover.hovered ? "#22f3b5" : "#00e5a3"))
+                        border.width: 1
+                        border.color: worklogController.punchedIn ? "#f59e0b" : Qt.rgba(1, 1, 1, 0.35)
+
+                        HoverHandler { id: punchHover }
+
+                        Label {
+                            anchors.centerIn: parent
+                            color: worklogController.punchedIn ? "#f59e0b" : "#091216"
+                            font.pixelSize: 12
+                            font.weight: Font.DemiBold
+                            text: worklogController.punchedIn ? "Punch Out" : "Punch In"
+                        }
+
+                        MouseArea {
+                            id: punchMouse
+                            anchors.fill: parent
+                            enabled: !worklogController.busy
+                            cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
+                            onClicked: worklogController.togglePunchClock()
+                        }
+                    }
+                }
             }
 
-            // 1. FileShelfView
-            FileShelfView {
-                id: fileShelfView
-                onDropCompleted: root.shelfDropCompleted()
-                onDragHoverChanged: root.shelfDragHoverChanged()
-            }
+            // Main Tab Body
+            StackLayout {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                currentIndex: root.activeTab
+
+                // 0. ClipboardView
+                ClipboardView {
+                    id: clipboardView
+                }
+
+                // 1. Bespoke IoT Control Grid
+                IoTView {
+                    id: iotView
+                    visible: configManager.enableIoT
+                }
 
             // 2. SpotiBar MediaView
             MediaView {
@@ -689,6 +897,7 @@ Item {
                 visible: configManager.enableITSM
                 onCollapseRequested: root.collapseRequested()
             }
+        }
         }
     }
 }
