@@ -35,7 +35,15 @@ IoTController::IoTController(const app::ConfigManager *config, QObject *parent)
 {
     m_statusText = isConfigured()
         ? QStringLiteral("Ready to trigger smart devices")
-        : QStringLiteral("Set IOT_WEBHOOK_BASE in ~/.config/catchypills/.env");
+        : QStringLiteral("Set IOT_WEBHOOK_BASE in Settings or ~/.config/catchypills/.env");
+}
+
+void IoTController::reloadConfig()
+{
+    m_statusText = isConfigured()
+        ? QStringLiteral("Ready to trigger smart devices")
+        : QStringLiteral("Set IOT_WEBHOOK_BASE in Settings or ~/.config/catchypills/.env");
+    Q_EMIT stateChanged();
 }
 
 bool IoTController::isConfigured() const

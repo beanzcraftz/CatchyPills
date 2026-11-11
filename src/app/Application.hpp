@@ -80,6 +80,7 @@ public:
     QString daemonStatusText() const;
 
     Q_INVOKABLE void openSettings();
+    Q_INVOKABLE void openEnvFile();
     Q_INVOKABLE void toggleIslandVisible();
     Q_INVOKABLE void openWebSearch(const QString &query);
 

@@ -25,16 +25,21 @@ Built specifically for ultrawide displays (`3840×1080`) and multi-monitor setup
 ### Dynamic Island & Multi-Monitor Positioning
 - **LayerShellQt (`zwlr_layer_shell_v1`):** Anchors unobtrusively without pushing maximized windows out of place (`exclusiveZone = 0`). Uses dynamic `QWindow::setMask()` / `Qt::WindowTransparentForInput` so transparent pixels stay click-through and synchronized with KDE blur (`KWindowEffects`).
 - **Right-Click Drag Across Outputs:** Hold and drag the collapsed pill with the **right mouse button** to move smoothly across bezels and re-anchor onto adjacent monitors (`DP-1` ↔ `DP-2`). Left-clicking and hovering remain reserved for expanding the dashboard.
-- **Settings & System Tray:** Live preferences (target monitor, offsets, hover settle timer, collapse delay, fullscreen auto-hide, screenshot folder, auto-copy toggle, clipboard capture pause, shelf retention, autostart) accessible from the header gear button (`⚙`) or system tray.
+- **Settings & System Tray:** Live preferences (target monitor, offsets, hover settle timer, collapse delay, fullscreen auto-hide, screenshot folder, auto-copy toggle, clipboard capture pause, autostart, and optional bespoke integrations) accessible from the header gear button (`⚙`) or system tray.
 
 ### Clipboard History (`ext_data_control_manager_v1`)
 - Monitors the Wayland clipboard passively in the background without stealing focus.
 - Respects password managers by ignoring `x-kde-passwordManagerHint=secret` payloads.
-- Stores deduplicated text, URLs, and image previews in SQLite (`$XDG_DATA_HOME/CatchyPills/catchypills.db3`); click to copy or pin favorites permanently.
+- Stores deduplicated text, URLs, and image previews in SQLite (`$XDG_DATA_HOME/CatchyPills/catchypills.db3`) with 24-hour automatic retention cleanup; click to copy or pin favorites permanently.
 
-### Drop Inbox / File Shelf
-- Drag files, images, or URLs onto the pill to unlock the canvas drop target automatically and stage items with generated image thumbnails.
-- Click staged items to copy paths or drag files back out to target applications.
+### Optional Bespoke Integrations (Settings -> Bespoke Integrations)
+
+All personal workflow modules default to **off** on fresh installs and store endpoints, database paths, and API keys outside version control in `~/.config/catchypills/.env` (see [`.env.example`](.env.example)), editable directly inside **Settings -> Bespoke Integrations (Advanced)** with hot-reload:
+
+- **ServiceNow ITSM Prompt Generator (`enableITSM`):** Paste raw article HTML, error codes, or rough notes and click any category template card (*Knowledge*, *Apps & Systems*, *Processes*, *Self-Service*) to copy the formatted refactoring prompt and fire a `notify-send` toast.
+- **IoT & Smart Device Controls (`enableIoT`):** 3x2 toggle grid (`shed_ac`, `front_gate`, `office_lights`, `shed_lights`, `air_compressor`, `all_off`) dispatching HTTP POST webhooks using `IOT_WEBHOOK_BASE` (or per-device `IOT_WEBHOOK_<ID>` overrides) and optional `IOT_API_KEY`.
+- **Dual-Inverter Solar Telemetry (`enableSolar`):** Polls `SOLAR_API_URL` (`current_generation_kw` / `household_consumption_kw`) and renders a color-coded live readout in the dashboard header (`#00E5A3` when exporting, amber when drawing from grid).
+- **Worklog Punch-Clock (`enableWorklog`):** Adds a live ticking `HH:MM:SS` shift sidebar and **Punch In / Punch Out** control synced with your local/mounted SQLite database (`WORKLOG_DB_PATH`) or HTTP endpoint (`WORKLOG_API_URL`).
 
 ### SpotiBar Media Integration (MPRIS2)
 - Controls any MPRIS2-compatible player (Spotify, VLC, browsers, etc.) directly from the **Media** tab.

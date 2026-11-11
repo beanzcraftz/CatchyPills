@@ -57,11 +57,33 @@ Item {
                     text: iotController.statusText
                 }
 
-                Label {
-                    color: iotController.configured ? "#00e5a3" : "#f59e0b"
-                    font.pixelSize: 10
-                    font.weight: Font.DemiBold
-                    text: iotController.configured ? ".env Ready" : "Missing Webhook"
+                Rectangle {
+                    Layout.preferredWidth: cfgLbl.implicitWidth + 14
+                    Layout.preferredHeight: 20
+                    radius: 6
+                    color: iotController.configured
+                           ? Qt.rgba(0.0, 0.90, 0.64, 0.14)
+                           : (cfgHover.hovered ? Qt.rgba(0.96, 0.62, 0.04, 0.25) : Qt.rgba(0.96, 0.62, 0.04, 0.14))
+                    border.width: 1
+                    border.color: iotController.configured ? Qt.rgba(0.0, 0.90, 0.64, 0.35) : Qt.rgba(0.96, 0.62, 0.04, 0.45)
+
+                    HoverHandler { id: cfgHover }
+
+                    Label {
+                        id: cfgLbl
+                        anchors.centerIn: parent
+                        color: iotController.configured ? "#00e5a3" : "#f59e0b"
+                        font.pixelSize: 10
+                        font.weight: Font.DemiBold
+                        text: iotController.configured ? "Ready" : "Configure ⚙"
+                    }
+
+                    MouseArea {
+                        anchors.fill: parent
+                        enabled: !iotController.configured
+                        cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
+                        onClicked: appController.openSettings()
+                    }
                 }
             }
         }

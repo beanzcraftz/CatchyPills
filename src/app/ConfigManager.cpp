@@ -2,11 +2,14 @@
 
 #include <QDir>
 #include <QFile>
+#include <QFileDevice>
 #include <QFileInfo>
 #include <QGuiApplication>
 #include <QScreen>
+#include <QSet>
 #include <QStandardPaths>
 #include <QTextStream>
+#include <QVariant>
 
 #include <algorithm>
 #include <cmath>
@@ -239,6 +242,11 @@ void ConfigManager::setScreenshotsDirFromUrl(const QUrl &url)
     }
 }
 
+QString ConfigManager::urlToLocalPath(const QUrl &url) const
+{
+    return url.isLocalFile() ? url.toLocalFile() : url.toString();
+}
+
 void ConfigManager::setAutoCopyCapture(bool enabled)
 {
     if (m_autoCopyCapture == enabled) {
@@ -320,21 +328,165 @@ void ConfigManager::setEnableWorklog(bool enabled)
     Q_EMIT enableWorklogChanged(m_enableWorklog);
 }
 
+QString ConfigManager::envFilePath() const
+{
+    return QStandardPaths::writableLocation(QStandardPaths::ConfigLocation)
+           + QStringLiteral("/catchypills/.env");
+}
+
 QString ConfigManager::envValue(const QString &key, const QString &fallback) const
 {
+    if (m_envVars.contains(key)) {
+        return m_envVars.value(key);
+    }
     if (qEnvironmentVariableIsSet(key.toUtf8().constData())) {
         return qEnvironmentVariable(key.toUtf8().constData());
     }
-    return m_envVars.value(key, fallback);
+    return fallback;
+}
+
+void ConfigManager::reloadEnv()
+{
+    m_envVars.clear();
+    loadDotEnv();
+    Q_EMIT envConfigChanged();
+}
+
+bool ConfigManager::ensureEnvTemplateExists() const
+{
+    const QString path = envFilePath();
+    if (QFileInfo::exists(path)) {
+        return true;
+    }
+
+    QDir().mkpath(QFileInfo(path).absolutePath());
+    QFile file(path);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        return false;
+    }
+
+    const QString starter = QStringLiteral(
+        "# CatchyPills Personal & Bespoke Integrations\n"
+        "# Edited safely outside git. Save or run Reload .env in Settings.\n\n"
+        "# --- IoT Controls ---\n"
+        "# IOT_WEBHOOK_BASE=\"http://192.168.1.200:8123/api/webhook\"\n"
+        "# IOT_API_KEY=\"\"\n\n"
+        "# --- Solar Telemetry ---\n"
+        "# SOLAR_API_URL=\"http://192.168.1.200:8000/api/solar\"\n"
+        "# SOLAR_API_KEY=\"\"\n"
+        "# SOLAR_POLL_INTERVAL_MS=\"15000\"\n\n"
+        "# --- Worklog Time Tracker ---\n"
+        "# WORKLOG_DB_PATH=\"\"\n"
+        "# WORKLOG_DB_TABLE=\"\"\n"
+        "# WORKLOG_API_URL=\"http://192.168.1.200:8501/api/worklog\"\n"
+        "# WORKLOG_API_KEY=\"\"\n");
+
+    file.write(starter.toUtf8());
+    file.close();
+    QFile::setPermissions(path, QFileDevice::ReadOwner | QFileDevice::WriteOwner);
+    return true;
+}
+
+bool ConfigManager::saveIntegrationEnv(const QVariantMap &entries)
+{
+    const QString path = envFilePath();
+    QDir().mkpath(QFileInfo(path).absolutePath());
+
+    auto formatEnvLine = [](const QString &key, const QString &rawVal) {
+        QString escaped = rawVal;
+        escaped.replace(QLatin1Char('\\'), QStringLiteral("\\\\"));
+        escaped.replace(QLatin1Char('"'), QStringLiteral("\\\""));
+        return QStringLiteral("%1=\"%2\"").arg(key, escaped);
+    };
+
+    QStringList existingLines;
+    {
+        QFile existing(path);
+        if (existing.exists() && existing.open(QIODevice::ReadOnly | QIODevice::Text)) {
+            QTextStream in(&existing);
+            while (!in.atEnd()) {
+                existingLines.append(in.readLine());
+            }
+        }
+    }
+
+    if (existingLines.isEmpty()) {
+        existingLines << QStringLiteral("# CatchyPills Personal & Bespoke Integrations")
+                      << QStringLiteral("# Managed by CatchyPills Settings (excluded from git)");
+    }
+
+    QSet<QString> handledKeys;
+    QStringList outputLines;
+    outputLines.reserve(existingLines.size() + entries.size());
+
+    for (const QString &rawLine : existingLines) {
+        QString probe = rawLine.trimmed();
+        if (probe.isEmpty() || probe.startsWith(QLatin1Char('#'))) {
+            outputLines.append(rawLine);
+            continue;
+        }
+        if (probe.startsWith(QStringLiteral("export "))) {
+            probe = probe.mid(7).trimmed();
+        }
+        const int eqIdx = probe.indexOf(QLatin1Char('='));
+        if (eqIdx <= 0) {
+            outputLines.append(rawLine);
+            continue;
+        }
+        const QString key = probe.left(eqIdx).trimmed();
+        if (!entries.contains(key)) {
+            outputLines.append(rawLine);
+            continue;
+        }
+
+        handledKeys.insert(key);
+        const QString newVal = entries.value(key).toString().trimmed();
+        if (newVal.isEmpty()) {
+            m_envVars.remove(key);
+            qunsetenv(key.toUtf8().constData());
+        } else {
+            m_envVars.insert(key, newVal);
+            qputenv(key.toUtf8().constData(), newVal.toUtf8());
+            outputLines.append(formatEnvLine(key, newVal));
+        }
+    }
+
+    for (auto it = entries.constBegin(); it != entries.constEnd(); ++it) {
+        const QString key = it.key().trimmed();
+        if (key.isEmpty() || handledKeys.contains(key)) {
+            continue;
+        }
+        const QString newVal = it.value().toString().trimmed();
+        if (newVal.isEmpty()) {
+            m_envVars.remove(key);
+            qunsetenv(key.toUtf8().constData());
+        } else {
+            m_envVars.insert(key, newVal);
+            qputenv(key.toUtf8().constData(), newVal.toUtf8());
+            outputLines.append(formatEnvLine(key, newVal));
+        }
+    }
+
+    QFile outFile(path);
+    if (!outFile.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text)) {
+        return false;
+    }
+    const QByteArray payload = (outputLines.join(QLatin1Char('\n')) + QLatin1Char('\n')).toUtf8();
+    outFile.write(payload);
+    outFile.close();
+    QFile::setPermissions(path, QFileDevice::ReadOwner | QFileDevice::WriteOwner);
+
+    reloadEnv();
+    return true;
 }
 
 void ConfigManager::loadDotEnv()
 {
     const QString configRoot = QStandardPaths::writableLocation(QStandardPaths::ConfigLocation);
     const QStringList candidates = {
-        configRoot + QStringLiteral("/catchypills/.env"),
-        configRoot + QStringLiteral("/CatchyPills/.env"),
         QDir::currentPath() + QStringLiteral("/.env"),
+        configRoot + QStringLiteral("/CatchyPills/.env"),
+        configRoot + QStringLiteral("/catchypills/.env"),
     };
 
     for (const QString &path : candidates) {
@@ -361,12 +513,12 @@ void ConfigManager::loadDotEnv()
                 && ((val.startsWith(QLatin1Char('"')) && val.endsWith(QLatin1Char('"')))
                     || (val.startsWith(QLatin1Char('\'')) && val.endsWith(QLatin1Char('\''))))) {
                 val = val.mid(1, val.size() - 2);
+                val.replace(QStringLiteral("\\\""), QStringLiteral("\""));
+                val.replace(QStringLiteral("\\\\"), QStringLiteral("\\"));
             }
             if (!key.isEmpty()) {
                 m_envVars.insert(key, val);
-                if (!qEnvironmentVariableIsSet(key.toUtf8().constData())) {
-                    qputenv(key.toUtf8().constData(), val.toUtf8());
-                }
+                qputenv(key.toUtf8().constData(), val.toUtf8());
             }
         }
     }

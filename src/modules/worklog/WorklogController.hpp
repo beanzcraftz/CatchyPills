@@ -42,6 +42,7 @@ public:
     Q_INVOKABLE void setEnabled(bool enabled);
     Q_INVOKABLE void refresh();
     Q_INVOKABLE void togglePunchClock();
+    Q_INVOKABLE void reloadConfig();
 
 Q_SIGNALS:
     void stateChanged();

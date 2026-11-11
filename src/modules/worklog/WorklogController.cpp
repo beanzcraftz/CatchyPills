@@ -114,6 +114,37 @@ void WorklogController::refresh()
     }
 }
 
+void WorklogController::reloadConfig()
+{
+    if (m_activeReply) {
+        m_activeReply->abort();
+        m_activeReply = nullptr;
+    }
+    m_requestInFlight = false;
+    m_dbReady = false;
+    if (QSqlDatabase::contains(m_connectionName)) {
+        {
+            QSqlDatabase db = QSqlDatabase::database(m_connectionName, false);
+            if (db.isOpen()) {
+                db.close();
+            }
+        }
+        QSqlDatabase::removeDatabase(m_connectionName);
+    }
+
+    m_punchedIn = false;
+    m_activeRowId = 0;
+    m_activeStartEpoch = 0;
+    m_startedAtText.clear();
+    m_lastDurationText.clear();
+    m_statusText = QStringLiteral("Ready");
+    Q_EMIT stateChanged();
+
+    if (m_enabled) {
+        refresh();
+    }
+}
+
 void WorklogController::togglePunchClock()
 {
     if (!m_enabled) {

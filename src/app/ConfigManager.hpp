@@ -45,6 +45,7 @@ class ConfigManager final : public QObject
     Q_PROPERTY(bool enableIoT READ enableIoT WRITE setEnableIoT NOTIFY enableIoTChanged)
     Q_PROPERTY(bool enableSolar READ enableSolar WRITE setEnableSolar NOTIFY enableSolarChanged)
     Q_PROPERTY(bool enableWorklog READ enableWorklog WRITE setEnableWorklog NOTIFY enableWorklogChanged)
+    Q_PROPERTY(QString envFilePath READ envFilePath CONSTANT)
 
 public:
     explicit ConfigManager(QObject *parent = nullptr);
@@ -78,6 +79,7 @@ public:
     QString screenshotsDir() const { return m_screenshotsDir; }
     void setScreenshotsDir(const QString &path);
     Q_INVOKABLE void setScreenshotsDirFromUrl(const QUrl &url);
+    Q_INVOKABLE QString urlToLocalPath(const QUrl &url) const;
 
     bool autoCopyCapture() const noexcept { return m_autoCopyCapture; }
     void setAutoCopyCapture(bool enabled);
@@ -103,7 +105,11 @@ public:
     bool enableWorklog() const noexcept { return m_enableWorklog; }
     void setEnableWorklog(bool enabled);
 
+    QString envFilePath() const;
     Q_INVOKABLE QString envValue(const QString &key, const QString &fallback = QString()) const;
+    Q_INVOKABLE bool saveIntegrationEnv(const QVariantMap &entries);
+    Q_INVOKABLE void reloadEnv();
+    Q_INVOKABLE bool ensureEnvTemplateExists() const;
 
 Q_SIGNALS:
     void availableMonitorsChanged();
@@ -124,6 +130,7 @@ Q_SIGNALS:
     void enableIoTChanged(bool enabled);
     void enableSolarChanged(bool enabled);
     void enableWorklogChanged(bool enabled);
+    void envConfigChanged();
 
 private:
     void loadDotEnv();

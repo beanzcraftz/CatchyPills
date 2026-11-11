@@ -107,6 +107,18 @@ bool Application::initialize()
             m_solarController, &solar::SolarController::setEnabled);
     connect(m_configManager, &ConfigManager::enableWorklogChanged,
             m_worklogController, &worklog::WorklogController::setEnabled);
+    connect(m_configManager, &ConfigManager::envConfigChanged,
+            this, [this]() {
+                if (m_iotController) {
+                    m_iotController->reloadConfig();
+                }
+                if (m_solarController) {
+                    m_solarController->reloadConfig();
+                }
+                if (m_worklogController) {
+                    m_worklogController->reloadConfig();
+                }
+            });
 
     connect(m_configManager, &ConfigManager::targetMonitorChanged,
             this, &Application::applyDisplaySettings);
@@ -238,6 +250,15 @@ void Application::openSettings()
     m_settingsWindow->show();
     m_settingsWindow->raise();
     m_settingsWindow->requestActivate();
+}
+
+void Application::openEnvFile()
+{
+    if (!m_configManager) {
+        return;
+    }
+    m_configManager->ensureEnvTemplateExists();
+    QDesktopServices::openUrl(QUrl::fromLocalFile(m_configManager->envFilePath()));
 }
 
 void Application::toggleIslandVisible()

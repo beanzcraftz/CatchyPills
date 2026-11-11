@@ -179,7 +179,7 @@ Item {
                                      + (solarController.lastUpdatedText !== "" ? ("\nUpdated " + solarController.lastUpdatedText) : ""))
                                   : (solarController.configured
                                      ? "Waiting for dual-inverter telemetry...\nClick to retry"
-                                     : "Set SOLAR_API_URL in ~/.config/catchypills/.env")
+                                     : "Click to configure SOLAR_API_URL in Settings")
 
                     Row {
                         id: solarRow
@@ -206,7 +206,13 @@ Item {
                     MouseArea {
                         anchors.fill: parent
                         cursorShape: Qt.PointingHandCursor
-                        onClicked: solarController.refresh()
+                        onClicked: {
+                            if (solarController.configured) {
+                                solarController.refresh()
+                            } else {
+                                appController.openSettings()
+                            }
+                        }
                     }
                 }
             }

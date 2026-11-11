@@ -34,6 +34,45 @@ SolarController::SolarController(const app::ConfigManager *config, QObject *pare
     connect(m_pollTimer, &QTimer::timeout, this, &SolarController::refresh);
 }
 
+void SolarController::reloadConfig()
+{
+    int intervalMs = kDefaultPollIntervalMs;
+    if (m_config) {
+        bool ok = false;
+        const int customMs = m_config->envValue(QStringLiteral("SOLAR_POLL_INTERVAL_MS")).toInt(&ok);
+        if (ok && customMs > 0) {
+            intervalMs = std::clamp(customMs, 2000, 300000);
+        }
+    }
+    m_pollTimer->setInterval(intervalMs);
+
+    if (m_activeReply) {
+        m_activeReply->abort();
+        m_activeReply = nullptr;
+    }
+    m_fetchInFlight = false;
+
+    if (!isConfigured()) {
+        m_pollTimer->stop();
+        m_available = false;
+        m_generationKw = 0.0;
+        m_consumptionKw = 0.0;
+        m_generationText = QStringLiteral("-- kW");
+        m_consumptionText = QStringLiteral("-- kW");
+        m_lastUpdatedText.clear();
+        Q_EMIT telemetryUpdated();
+        return;
+    }
+
+    Q_EMIT telemetryUpdated();
+    if (m_enabled) {
+        refresh();
+        if (!m_pollTimer->isActive()) {
+            m_pollTimer->start();
+        }
+    }
+}
+
 QString SolarController::endpointUrl() const
 {
     if (!m_config) {

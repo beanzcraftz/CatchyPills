@@ -33,6 +33,7 @@ public:
     QString statusText() const { return m_statusText; }
 
     Q_INVOKABLE void triggerDevice(const QString &deviceId);
+    Q_INVOKABLE void reloadConfig();
 
 Q_SIGNALS:
     void stateChanged();
