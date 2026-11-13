@@ -173,13 +173,16 @@ Item {
                     ToolTip.visible: solarHover.hovered
                     ToolTip.delay: 300
                     ToolTip.text: solarController.available
-                                  ? ((solarController.exceedingConsumption ? "Exporting surplus to grid" : "Drawing power from grid")
+                                  ? ((solarController.exceedingConsumption
+                                      ? ("Exporting " + solarController.netText + " to grid")
+                                      : ("Drawing " + solarController.netText + " from grid"))
                                      + "\nGen: " + solarController.generationText
                                      + " • Use: " + solarController.consumptionText
+                                     + (solarController.dailyGenerationText !== "" ? ("\nToday: " + solarController.dailyGenerationText + " gen • " + solarController.dailyConsumptionText + " load") : "")
                                      + (solarController.lastUpdatedText !== "" ? ("\nUpdated " + solarController.lastUpdatedText) : ""))
                                   : (solarController.configured
-                                     ? "Waiting for dual-inverter telemetry...\nClick to retry"
-                                     : "Click to configure SOLAR_API_URL in Settings")
+                                     ? "Waiting for solar telemetry...\nClick to retry"
+                                     : "Click to configure Solar Entities in Settings")
 
                     Row {
                         id: solarRow

@@ -10,7 +10,7 @@ StartLimitBurst=5
 
 [Service]
 Type=dbus
-BusName=io.hearnelabs.CatchyPillsDaemon
+BusName=io.beanzcraftz.CatchyPillsDaemon
 ExecStart=/usr/bin/catchypillsd
 Restart=on-failure
 RestartSec=2

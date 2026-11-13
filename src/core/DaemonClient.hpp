@@ -23,7 +23,7 @@ struct FileMatchDto {
 
 /**
  * Session D-Bus client connecting the C++20/Qt6 Dynamic Island to the Rust
- * catchypillsd background daemon (io.hearnelabs.CatchyPillsDaemon1).
+ * catchypillsd background daemon (io.beanzcraftz.CatchyPillsDaemon1).
  */
 class DaemonClient final : public QObject
 {
@@ -57,9 +57,9 @@ private Q_SLOTS:
     void onHtmlClipboardReady(const QString &htmlText);
 
 private:
-    static constexpr const char *kServiceName = "io.hearnelabs.CatchyPillsDaemon";
-    static constexpr const char *kObjectPath = "/io/hearnelabs/CatchyPillsDaemon";
-    static constexpr const char *kInterfaceName = "io.hearnelabs.CatchyPillsDaemon1";
+    static constexpr const char *kServiceName = "io.beanzcraftz.CatchyPillsDaemon";
+    static constexpr const char *kObjectPath = "/io/beanzcraftz/CatchyPillsDaemon";
+    static constexpr const char *kInterfaceName = "io.beanzcraftz.CatchyPillsDaemon1";
 
     QString m_latestClipPreview;
     QVariantList m_recentClips;

@@ -17,7 +17,7 @@
 namespace catchypills::app {
 
 namespace {
-constexpr const char *kAutostartDesktopName = "io.hearnelabs.CatchyPills.desktop";
+constexpr const char *kAutostartDesktopName = "io.beanzcraftz.CatchyPills.desktop";
 }
 
 ConfigManager::ConfigManager(QObject *parent)
@@ -368,9 +368,10 @@ bool ConfigManager::ensureEnvTemplateExists() const
     const QString starter = QStringLiteral(
         "# CatchyPills Personal & Bespoke Integrations\n"
         "# Edited safely outside git. Save or run Reload .env in Settings.\n\n"
-        "# --- IoT Controls ---\n"
-        "# IOT_WEBHOOK_BASE=\"http://192.168.1.200:8123/api/webhook\"\n"
-        "# IOT_API_KEY=\"\"\n\n"
+        "# --- IoT Controls (Home Assistant REST or Webhooks) ---\n"
+        "# IOT_WEBHOOK_BASE=\"http://192.168.1.244:8123\"\n"
+        "# IOT_API_KEY=\"\"\n"
+        "# IOT_ENTITY_OFFICE_LIGHTS=\"light.olamp\"\n\n"
         "# --- Solar Telemetry ---\n"
         "# SOLAR_API_URL=\"http://192.168.1.200:8000/api/solar\"\n"
         "# SOLAR_API_KEY=\"\"\n"

@@ -68,13 +68,13 @@ All personal workflow modules default to **off** on fresh installs and store end
 
 ## Architecture
 
-CatchyPills splits high-speed Wayland UI rendering and screen capture (`catchypills`, C++20/Qt6) from persistent background clipboard/filesystem indexing (`catchypillsd`, Rust) over **Session D-Bus** (`io.hearnelabs.CatchyPillsDaemon`):
+CatchyPills splits high-speed Wayland UI rendering and screen capture (`catchypills`, C++20/Qt6) from persistent background clipboard/filesystem indexing (`catchypillsd`, Rust) over **Session D-Bus** (`io.beanzcraftz.CatchyPillsDaemon`):
 
 ```text
 +--------------------------------------------+       Session D-Bus        +--------------------------------------------+
-|          catchypills (C++20 / Qt6)         |  io.hearnelabs.CatchyPills |        catchypillsd (Rust Daemon)          |
+|          catchypills (C++20 / Qt6)         |  io.beanzcraftz.CatchyPills |        catchypillsd (Rust Daemon)          |
 |                                            |<-------------------------->|                                            |
-| - LayerSurfaceController (LayerShellQt)    |  GetRecentClips / Search   | - zbus (io.hearnelabs.CatchyPillsDaemon1)  |
+| - LayerSurfaceController (LayerShellQt)    |  GetRecentClips / Search   | - zbus (io.beanzcraftz.CatchyPillsDaemon1)  |
 | - IslandWindow / CollapsedPill / Settings  |  SetClipboardPaused        | - ext_data_control_v1 Clipboard Watcher    |
 | - SysMonController (/proc/stat & meminfo)  |  ClipboardUpdated signal   | - SQLite WAL store (rusqlite)              |
 | - WeatherController (Open-Meteo 30m cache) |                            | - Parallel File Indexer (ignore + notify   |
@@ -101,7 +101,7 @@ cd CatchyPills
 `install.sh` automatically:
 1. Installs required dependencies via `sudo pacman -S --needed --noconfirm`.
 2. Builds `catchypills` (C++20 / Qt6 / Ninja) and `catchypillsd` (Rust `--release`).
-3. Installs `/usr/bin/catchypills`, `/usr/bin/catchypillsd`, desktop entries (`io.hearnelabs.CatchyPills.desktop`), XDG autostart, and `catchypillsd.service`.
+3. Installs `/usr/bin/catchypills`, `/usr/bin/catchypillsd`, desktop entries (`io.beanzcraftz.CatchyPills.desktop`), XDG autostart, and `catchypillsd.service`.
 4. Enables `catchypillsd.service` with `systemctl --user enable --now` and launches CatchyPills immediately.
 
 ### Option 2: Installing a Prebuilt Release 1.1 Bundle

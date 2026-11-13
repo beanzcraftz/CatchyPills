@@ -29,8 +29,8 @@ install -Dm755 "$REPO_ROOT/daemon/target/release/catchypillsd" "$STAGE_DIR/catch
 install -Dm644 "$REPO_ROOT/README.md" "$STAGE_DIR/README.md"
 install -Dm755 "$REPO_ROOT/install.sh" "$STAGE_DIR/install.sh"
 install -Dm755 "$REPO_ROOT/uninstall.sh" "$STAGE_DIR/uninstall.sh"
-install -Dm644 "$REPO_ROOT/packaging/io.hearnelabs.CatchyPills.desktop" \
-    "$STAGE_DIR/io.hearnelabs.CatchyPills.desktop"
+install -Dm644 "$REPO_ROOT/packaging/io.beanzcraftz.CatchyPills.desktop" \
+    "$STAGE_DIR/io.beanzcraftz.CatchyPills.desktop"
 install -Dm644 "$REPO_ROOT/packaging/catchypillsd.service" \
     "$STAGE_DIR/catchypillsd.service"
 

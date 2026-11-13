@@ -9,10 +9,10 @@ int main(int argc, char *argv[])
     app.setQuitOnLastWindowClosed(false);
     app.setApplicationName(QStringLiteral("catchypills"));
     app.setApplicationDisplayName(QStringLiteral("CatchyPills"));
-    app.setOrganizationName(QStringLiteral("HearneLabs"));
-    app.setOrganizationDomain(QStringLiteral("hearnelabs.io"));
+    app.setOrganizationName(QStringLiteral("BeanzCraftz"));
+    app.setOrganizationDomain(QStringLiteral("beanzcraftz.io"));
     // Must match the installed .desktop filename for KWin ScreenShot2 authorization.
-    app.setDesktopFileName(QStringLiteral("io.hearnelabs.CatchyPills"));
+    app.setDesktopFileName(QStringLiteral("io.beanzcraftz.CatchyPills"));
 
     catchypills::app::Application controller;
     if (!controller.initialize()) {

@@ -16,10 +16,26 @@ Window {
     property bool revealSolarKey: false
     property bool revealWorklogKey: false
     property string envFeedbackText: ""
+    readonly property var iotTileSpecs: [
+        { key: "IOT_ENTITY_OFFICE_AC", label: "Gree AC", placeholder: "e.g. climate.shed_ac" },
+        { key: "IOT_ENTITY_OFFICE_FAN", label: "Arlec Fan", placeholder: "e.g. fan.office_fan" },
+        { key: "IOT_ENTITY_OFFICE_OUTLET", label: "Power Outlet", placeholder: "e.g. switch.office_socket" },
+        { key: "IOT_ENTITY_OFFICE_LAMP", label: "Desk Lamp (Olamp)", placeholder: "e.g. light.office_olamp" }
+    ]
 
     function syncEnvFields() {
-        iotWebhookField.text = configManager.envValue("IOT_WEBHOOK_BASE")
+        iotWebhookField.text = configManager.envValue("IOT_HA_URL") !== ""
+                               ? configManager.envValue("IOT_HA_URL")
+                               : configManager.envValue("IOT_WEBHOOK_BASE")
         iotKeyField.text = configManager.envValue("IOT_API_KEY")
+        for (var i = 0; i < iotTileSpecs.length; ++i) {
+            var item = iotEntityRepeater.itemAt(i)
+            if (item) {
+                item.entityText = configManager.envValue(iotTileSpecs[i].key)
+            }
+        }
+        solarGenEntityField.text = configManager.envValue("SOLAR_GEN_ENTITY")
+        solarLoadEntityField.text = configManager.envValue("SOLAR_LOAD_ENTITY")
         solarUrlField.text = configManager.envValue("SOLAR_API_URL")
         solarKeyField.text = configManager.envValue("SOLAR_API_KEY")
         var pollMs = parseInt(configManager.envValue("SOLAR_POLL_INTERVAL_MS", "15000"), 10)
@@ -35,9 +51,11 @@ Window {
     function saveEnvFields() {
         var secs = parseInt(solarIntervalField.text, 10)
         var intervalMs = (!isNaN(secs) && secs >= 2) ? (secs * 1000).toString() : ""
-        var ok = configManager.saveIntegrationEnv({
+        var entries = {
             "IOT_WEBHOOK_BASE": iotWebhookField.text,
             "IOT_API_KEY": iotKeyField.text,
+            "SOLAR_GEN_ENTITY": solarGenEntityField.text,
+            "SOLAR_LOAD_ENTITY": solarLoadEntityField.text,
             "SOLAR_API_URL": solarUrlField.text,
             "SOLAR_API_KEY": solarKeyField.text,
             "SOLAR_POLL_INTERVAL_MS": intervalMs,
@@ -45,7 +63,14 @@ Window {
             "WORKLOG_DB_TABLE": worklogTableField.text,
             "WORKLOG_API_URL": worklogApiUrlField.text,
             "WORKLOG_API_KEY": worklogApiKeyField.text
-        })
+        }
+        for (var i = 0; i < iotTileSpecs.length; ++i) {
+            var item = iotEntityRepeater.itemAt(i)
+            if (item) {
+                entries[iotTileSpecs[i].key] = item.entityText
+            }
+        }
+        var ok = configManager.saveIntegrationEnv(entries)
         envFeedbackText = ok
             ? "Saved & applied to " + configManager.envFilePath
             : "Failed writing " + configManager.envFilePath
@@ -483,20 +508,20 @@ Window {
                                 color: "#e2e8f0"
                                 font.pixelSize: 11
                                 font.weight: Font.DemiBold
-                                text: "IoT Webhook Base URL (IOT_WEBHOOK_BASE)"
+                                text: "Home Assistant URL or Webhook Base (IOT_WEBHOOK_BASE)"
                             }
 
                             TextField {
                                 id: iotWebhookField
                                 Layout.fillWidth: true
-                                placeholderText: "e.g. http://192.168.1.200:8123/api/webhook or ...?device={device}"
+                                placeholderText: "e.g. http://192.168.1.244:8123"
                             }
 
                             Label {
                                 Layout.fillWidth: true
                                 color: "#e2e8f0"
                                 font.pixelSize: 11
-                                text: "Bearer Token / API Key (IOT_API_KEY, optional)"
+                                text: "Long-Lived Access Token / Bearer Key (IOT_API_KEY)"
                             }
 
                             RowLayout {
@@ -507,7 +532,7 @@ Window {
                                     id: iotKeyField
                                     Layout.fillWidth: true
                                     echoMode: root.revealIotKey ? TextInput.Normal : TextInput.Password
-                                    placeholderText: "Optional Authorization Bearer token"
+                                    placeholderText: "Home Assistant Long-Lived Access Token"
                                 }
 
                                 Button {
@@ -518,10 +543,52 @@ Window {
 
                             Label {
                                 Layout.fillWidth: true
+                                color: "#e2e8f0"
+                                font.pixelSize: 11
+                                font.weight: Font.DemiBold
+                                text: "Home Assistant Entity IDs (per tile)"
+                            }
+
+                            GridLayout {
+                                Layout.fillWidth: true
+                                columns: 2
+                                columnSpacing: 8
+                                rowSpacing: 6
+
+                                Repeater {
+                                    id: iotEntityRepeater
+                                    model: root.iotTileSpecs
+
+                                    delegate: ColumnLayout {
+                                        id: entityRow
+                                        required property var modelData
+                                        property alias entityText: entityInput.text
+                                        Layout.fillWidth: true
+                                        spacing: 3
+
+                                        Label {
+                                            Layout.fillWidth: true
+                                            color: "#cbd5e1"
+                                            font.pixelSize: 10
+                                            text: entityRow.modelData.label
+                                        }
+
+                                        TextField {
+                                            id: entityInput
+                                            Layout.fillWidth: true
+                                            text: configManager.envValue(entityRow.modelData.key)
+                                            placeholderText: entityRow.modelData.placeholder
+                                        }
+                                    }
+                                }
+                            }
+
+                            Label {
+                                Layout.fillWidth: true
                                 color: "#94a3b8"
                                 font.pixelSize: 10
                                 wrapMode: Text.WordWrap
-                                text: "Tile IDs: shed_ac, front_gate, office_lights, shed_lights, air_compressor, all_off (per-device IOT_WEBHOOK_<ID> overrides also supported in .env)."
+                                text: "Set an entity_id (e.g. light.olamp) to call /api/services/<domain>/toggle, or leave blank to use legacy IOT_WEBHOOK_<ID> overrides."
                             }
                         }
                     }
@@ -553,13 +620,68 @@ Window {
                                 color: "#e2e8f0"
                                 font.pixelSize: 11
                                 font.weight: Font.DemiBold
-                                text: "Solar Telemetry JSON Endpoint (SOLAR_API_URL)"
+                                text: "Home Assistant Solar Entities"
+                            }
+
+                            RowLayout {
+                                Layout.fillWidth: true
+                                spacing: 8
+
+                                ColumnLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 4
+
+                                    Label {
+                                        color: "#94a3b8"
+                                        font.pixelSize: 10
+                                        text: "PV Generation Entity (SOLAR_GEN_ENTITY)"
+                                    }
+
+                                    TextField {
+                                        id: solarGenEntityField
+                                        Layout.fillWidth: true
+                                        placeholderText: "e.g. sensor.beans_residence_plant_power"
+                                    }
+                                }
+
+                                ColumnLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 4
+
+                                    Label {
+                                        color: "#94a3b8"
+                                        font.pixelSize: 10
+                                        text: "Household Load Entity (SOLAR_LOAD_ENTITY)"
+                                    }
+
+                                    TextField {
+                                        id: solarLoadEntityField
+                                        Layout.fillWidth: true
+                                        placeholderText: "e.g. sensor.beans_residence_sensor_83128"
+                                    }
+                                }
+                            }
+
+                            Label {
+                                Layout.fillWidth: true
+                                color: "#64748b"
+                                font.pixelSize: 10
+                                wrapMode: Text.WordWrap
+                                text: "Reuses your Home Assistant URL and token. Supports Sungrow and other inverters in W, kW, Wh, or kWh automatically."
+                            }
+
+                            Label {
+                                Layout.fillWidth: true
+                                color: "#e2e8f0"
+                                font.pixelSize: 11
+                                font.weight: Font.DemiBold
+                                text: "Direct Endpoint Override (Optional)"
                             }
 
                             TextField {
                                 id: solarUrlField
                                 Layout.fillWidth: true
-                                placeholderText: "e.g. http://192.168.1.200:8000/api/solar"
+                                placeholderText: "Leave blank to use Home Assistant entities above, or custom URL"
                             }
 
                             RowLayout {
@@ -584,7 +706,7 @@ Window {
                                             id: solarKeyField
                                             Layout.fillWidth: true
                                             echoMode: root.revealSolarKey ? TextInput.Normal : TextInput.Password
-                                            placeholderText: "Optional Bearer token"
+                                            placeholderText: "Optional (reuses IOT_API_KEY if blank)"
                                         }
 
                                         Button {

@@ -13,8 +13,9 @@ class ConfigManager;
 namespace catchypills::iot {
 
 /**
- * Triggers smart home and workshop IoT device webhooks read from .env
- * (e.g., IOT_WEBHOOK_BASE or per-device IOT_WEBHOOK_<DEVICE_ID>).
+ * Triggers smart home and workshop IoT devices read from .env
+ * (Home Assistant REST entities via IOT_ENTITY_<DEVICE_ID>, or webhook URLs
+ * via IOT_WEBHOOK_BASE / IOT_WEBHOOK_<DEVICE_ID>).
  */
 class IoTController final : public QObject
 {
@@ -39,6 +40,8 @@ Q_SIGNALS:
     void stateChanged();
 
 private:
+    QString resolveHaBaseUrl() const;
+    QString resolveEntityId(const QString &deviceId) const;
     QString resolveWebhookUrl(const QString &deviceId) const;
     void onReplyFinished(QNetworkReply *reply, const QString &deviceId);
 

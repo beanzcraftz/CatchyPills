@@ -99,9 +99,9 @@ private:
     void syncDaemonPreferences();
     void setDaemonOnline(bool online);
 
-    static constexpr const char *kDaemonService = "io.hearnelabs.CatchyPillsDaemon";
-    static constexpr const char *kDaemonPath = "/io/hearnelabs/CatchyPillsDaemon";
-    static constexpr const char *kDaemonIface = "io.hearnelabs.CatchyPillsDaemon1";
+    static constexpr const char *kDaemonService = "io.beanzcraftz.CatchyPillsDaemon";
+    static constexpr const char *kDaemonPath = "/io/beanzcraftz/CatchyPillsDaemon";
+    static constexpr const char *kDaemonIface = "io.beanzcraftz.CatchyPillsDaemon1";
 
     ConfigManager *m_configManager{nullptr};
     QQmlApplicationEngine *m_engine{nullptr};

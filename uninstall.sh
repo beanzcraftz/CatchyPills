@@ -13,11 +13,11 @@ systemctl --user disable --now catchypillsd.service >/dev/null 2>&1 || true
 echo "==> Removing installed binaries, desktop files, and unit..."
 sudo rm -f /usr/bin/catchypills \
     /usr/bin/catchypillsd \
-    /usr/share/applications/io.hearnelabs.CatchyPills.desktop \
-    /etc/xdg/autostart/io.hearnelabs.CatchyPills.desktop \
+    /usr/share/applications/io.beanzcraftz.CatchyPills.desktop \
+    /etc/xdg/autostart/io.beanzcraftz.CatchyPills.desktop \
     /usr/lib/systemd/user/catchypillsd.service
 
-rm -f "$HOME/.config/autostart/io.hearnelabs.CatchyPills.desktop"
+rm -f "$HOME/.config/autostart/io.beanzcraftz.CatchyPills.desktop"
 
 systemctl --user daemon-reload >/dev/null 2>&1 || true
 if command -v kbuildsycoca6 >/dev/null 2>&1; then

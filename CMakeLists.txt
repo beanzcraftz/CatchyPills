@@ -120,6 +120,6 @@ install(TARGETS catchypills
     RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
 )
 
-install(FILES packaging/io.hearnelabs.CatchyPills.desktop
+install(FILES packaging/io.beanzcraftz.CatchyPills.desktop
     DESTINATION "${CMAKE_INSTALL_DATADIR}/applications"
 )

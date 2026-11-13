@@ -31,8 +31,8 @@ use wayland_protocols::ext::data_control::v1::client::{
 };
 use zbus::{connection, interface, object_server::SignalEmitter, zvariant::Type};
 
-const DBUS_SERVICE_NAME: &str = "io.hearnelabs.CatchyPillsDaemon";
-const DBUS_OBJECT_PATH: &str = "/io/hearnelabs/CatchyPillsDaemon";
+const DBUS_SERVICE_NAME: &str = "io.beanzcraftz.CatchyPillsDaemon";
+const DBUS_OBJECT_PATH: &str = "/io/beanzcraftz/CatchyPillsDaemon";
 const KDE_SECRET_HINT_MIME: &str = "x-kde-passwordManagerHint";
 const MAX_CLIPBOARD_BYTES: usize = 32 * 1024 * 1024;
 
@@ -66,7 +66,7 @@ struct DaemonIpc {
     itsm_enabled: Arc<AtomicBool>,
 }
 
-#[interface(name = "io.hearnelabs.CatchyPillsDaemon1")]
+#[interface(name = "io.beanzcraftz.CatchyPillsDaemon1")]
 impl DaemonIpc {
     async fn ping(&self) -> String {
         format!(

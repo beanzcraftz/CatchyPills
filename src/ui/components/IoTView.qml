@@ -11,12 +11,10 @@ Item {
     id: root
 
     readonly property var devices: [
-        { deviceId: "shed_ac", label: "Shed AC", subtitle: "Workshop Climate", icon: "❄️", accent: "#38bdf8" },
-        { deviceId: "front_gate", label: "Front Gate", subtitle: "Driveway Entry", icon: "🚧", accent: "#f59e0b" },
-        { deviceId: "office_lights", label: "Office Lights", subtitle: "Desk & Ceiling", icon: "💡", accent: "#00e5a3" },
-        { deviceId: "shed_lights", label: "Shed Lights", subtitle: "Workshop Bays", icon: "🔆", accent: "#facc15" },
-        { deviceId: "air_compressor", label: "Compressor", subtitle: "Shop Air Supply", icon: "💨", accent: "#a78bfa" },
-        { deviceId: "all_off", label: "All Zones Off", subtitle: "Shutdown Scene", icon: "🌙", accent: "#2dd4bf" }
+        { deviceId: "office_ac", label: "Gree AC", subtitle: "Office Climate", icon: "❄️", accent: "#38bdf8" },
+        { deviceId: "office_fan", label: "Arlec Fan", subtitle: "Airflow", icon: "🌀", accent: "#2dd4bf" },
+        { deviceId: "office_outlet", label: "Power Outlet", subtitle: "Grid Socket", icon: "🔌", accent: "#f59e0b" },
+        { deviceId: "office_lamp", label: "Desk Lamp", subtitle: "Olamp", icon: "💡", accent: "#00e5a3" }
     ]
 
     ColumnLayout {
@@ -88,11 +86,11 @@ Item {
             }
         }
 
-        // 3x2 Glassmorphism IoT Toggle Grid
+        // 2x2 Glassmorphism Office IoT Toggle Grid
         GridLayout {
             Layout.fillWidth: true
             Layout.fillHeight: true
-            columns: 3
+            columns: 2
             columnSpacing: 8
             rowSpacing: 8
 

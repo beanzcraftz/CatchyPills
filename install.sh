@@ -68,22 +68,22 @@ if [[ -f "CMakeLists.txt" ]]; then
     sudo DESTDIR=/ cmake --install build
     sudo install -Dm755 "daemon/target/release/catchypillsd" "/usr/bin/catchypillsd"
     sudo install -Dm644 "packaging/catchypillsd.service" "/usr/lib/systemd/user/catchypillsd.service"
-    DESKTOP_SRC="packaging/io.hearnelabs.CatchyPills.desktop"
+    DESKTOP_SRC="packaging/io.beanzcraftz.CatchyPills.desktop"
 else
     echo "==> Installing prebuilt CatchyPills v1.1 release binaries..."
     sudo install -Dm755 "catchypills" "/usr/bin/catchypills"
     sudo install -Dm755 "catchypillsd" "/usr/bin/catchypillsd"
-    sudo install -Dm644 "io.hearnelabs.CatchyPills.desktop" \
-        "/usr/share/applications/io.hearnelabs.CatchyPills.desktop"
+    sudo install -Dm644 "io.beanzcraftz.CatchyPills.desktop" \
+        "/usr/share/applications/io.beanzcraftz.CatchyPills.desktop"
     sudo install -Dm644 "catchypillsd.service" "/usr/lib/systemd/user/catchypillsd.service"
-    DESKTOP_SRC="io.hearnelabs.CatchyPills.desktop"
+    DESKTOP_SRC="io.beanzcraftz.CatchyPills.desktop"
 fi
 
 # Install per-user autostart entry so the Settings "Start with System" toggle can
 # enable/disable it cleanly without elevated permissions.
 mkdir -p "$HOME/.config/autostart"
 install -Dm644 "$DESKTOP_SRC" \
-    "$HOME/.config/autostart/io.hearnelabs.CatchyPills.desktop"
+    "$HOME/.config/autostart/io.beanzcraftz.CatchyPills.desktop"
 
 if command -v kbuildsycoca6 >/dev/null 2>&1; then
     kbuildsycoca6 --noincremental >/dev/null 2>&1 || true
