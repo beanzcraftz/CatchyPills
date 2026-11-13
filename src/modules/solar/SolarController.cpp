@@ -7,6 +7,7 @@
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QNetworkRequest>
+#include <QProcess>
 #include <QTime>
 #include <QTimer>
 #include <QUrl>
@@ -87,6 +88,10 @@ void SolarController::reloadConfig()
     if (m_activeReply) {
         m_activeReply->abort();
         m_activeReply = nullptr;
+    }
+    if (m_batteryReply) {
+        m_batteryReply->abort();
+        m_batteryReply = nullptr;
     }
     m_fetchInFlight = false;
 
@@ -183,6 +188,10 @@ void SolarController::setEnabled(bool enabled)
             m_activeReply->abort();
             m_activeReply = nullptr;
         }
+        if (m_batteryReply) {
+            m_batteryReply->abort();
+            m_batteryReply = nullptr;
+        }
         m_fetchInFlight = false;
         return;
     }
@@ -197,7 +206,13 @@ void SolarController::setEnabled(bool enabled)
 
 void SolarController::refresh()
 {
-    if (!m_enabled || m_fetchInFlight || !m_config) {
+    if (!m_enabled || !m_config) {
+        return;
+    }
+
+    fetchBatteryTelemetry();
+
+    if (m_fetchInFlight) {
         return;
     }
 
@@ -348,6 +363,82 @@ void SolarController::onReplyFinished(QNetworkReply *reply)
 
     m_available = true;
     m_lastUpdatedText = QTime::currentTime().toString(QStringLiteral("HH:mm:ss"));
+
+    Q_EMIT telemetryUpdated();
+}
+
+void SolarController::fetchBatteryTelemetry()
+{
+    if (m_batteryReply) {
+        return;
+    }
+    QString haBase = resolveHaBaseUrl();
+    if (haBase.isEmpty()) {
+        haBase = QStringLiteral("http://192.168.1.244:8123");
+    }
+
+    const QUrl url(QStringLiteral("%1/api/states/sensor.ac200_battery_level").arg(haBase));
+    if (!url.isValid()) {
+        return;
+    }
+
+    QNetworkRequest request(url);
+    request.setTransferTimeout(8000);
+    request.setHeader(QNetworkRequest::UserAgentHeader, QStringLiteral("CatchyPills/1.1"));
+
+    const QString apiKey = resolveApiKey();
+    if (!apiKey.isEmpty()) {
+        request.setRawHeader("Authorization", QStringLiteral("Bearer %1").arg(apiKey).toUtf8());
+    }
+
+    QNetworkReply *reply = m_nam->get(request);
+    m_batteryReply = reply;
+    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
+        onBatteryReplyFinished(reply);
+    });
+}
+
+void SolarController::onBatteryReplyFinished(QNetworkReply *reply)
+{
+    reply->deleteLater();
+    if (m_batteryReply != reply) {
+        return;
+    }
+    m_batteryReply = nullptr;
+
+    if (reply->error() != QNetworkReply::NoError) {
+        return;
+    }
+
+    const QByteArray rawData = reply->readAll();
+    const QJsonDocument doc = QJsonDocument::fromJson(rawData);
+    if (!doc.isObject()) {
+        return;
+    }
+
+    const QJsonObject obj = doc.object();
+    const QString stateStr = obj.value(QStringLiteral("state")).toString().trimmed();
+    bool ok = false;
+    const double val = stateStr.toDouble(&ok);
+    if (!ok) {
+        return;
+    }
+
+    m_batteryPercentage = static_cast<int>(std::round(val));
+    m_hasBattery = true;
+
+    if (m_batteryPercentage <= 10 && !m_hasNotifiedLowBattery) {
+        m_hasNotifiedLowBattery = true;
+        QProcess::startDetached(
+            QStringLiteral("notify-send"),
+            QStringList() << QStringLiteral("-u") << QStringLiteral("critical")
+                          << QStringLiteral("-a") << QStringLiteral("CatchyPills")
+                          << QStringLiteral("Bluetti AC200 Low")
+                          << QStringLiteral("Battery is at 10%. Grid power override recommended.")
+        );
+    } else if (m_batteryPercentage > 15) {
+        m_hasNotifiedLowBattery = false;
+    }
 
     Q_EMIT telemetryUpdated();
 }

@@ -178,6 +178,7 @@ Item {
                                       : ("Drawing " + solarController.netText + " from grid"))
                                      + "\nGen: " + solarController.generationText
                                      + " • Use: " + solarController.consumptionText
+                                     + "\nBluetti: " + solarController.batteryPercentage + "%"
                                      + (solarController.dailyGenerationText !== "" ? ("\nToday: " + solarController.dailyGenerationText + " gen • " + solarController.dailyConsumptionText + " load") : "")
                                      + (solarController.lastUpdatedText !== "" ? ("\nUpdated " + solarController.lastUpdatedText) : ""))
                                   : (solarController.configured
@@ -203,6 +204,14 @@ Item {
                             font.pixelSize: 11
                             font.weight: Font.DemiBold
                             text: "🏠 " + solarController.consumptionText
+                        }
+
+                        Label {
+                            anchors.verticalCenter: parent.verticalCenter
+                            color: solarController.batteryPercentage < 15 ? "#FF4C4C" : solarPillItem.telemetryColor
+                            font.pixelSize: 11
+                            font.weight: Font.DemiBold
+                            text: "🔋 " + solarController.batteryPercentage + "%"
                         }
                     }
 

@@ -34,6 +34,8 @@ public:
     QString statusText() const { return m_statusText; }
 
     Q_INVOKABLE void triggerDevice(const QString &deviceId);
+    Q_INVOKABLE void setClimateMode(const QString &entityId, const QString &mode);
+    Q_INVOKABLE void setClimateTemperature(const QString &entityId, double temperature);
     Q_INVOKABLE void reloadConfig();
 
 Q_SIGNALS:

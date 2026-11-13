@@ -36,6 +36,8 @@ class SolarController final : public QObject
     Q_PROPERTY(bool available READ isAvailable NOTIFY telemetryUpdated)
     Q_PROPERTY(bool configured READ isConfigured NOTIFY telemetryUpdated)
     Q_PROPERTY(QString lastUpdatedText READ lastUpdatedText NOTIFY telemetryUpdated)
+    Q_PROPERTY(int batteryPercentage READ batteryPercentage NOTIFY telemetryUpdated)
+    Q_PROPERTY(bool hasBattery READ hasBattery NOTIFY telemetryUpdated)
 
 public:
     static constexpr int kDefaultPollIntervalMs = 15000;
@@ -56,6 +58,8 @@ public:
     bool isAvailable() const noexcept { return m_available; }
     bool isConfigured() const;
     QString lastUpdatedText() const { return m_lastUpdatedText; }
+    int batteryPercentage() const noexcept { return m_batteryPercentage; }
+    bool hasBattery() const noexcept { return m_hasBattery; }
 
     Q_INVOKABLE void setEnabled(bool enabled);
     Q_INVOKABLE void refresh();
@@ -69,10 +73,13 @@ private:
     QString resolveHaBaseUrl() const;
     QString resolveApiKey() const;
     void onReplyFinished(QNetworkReply *reply);
+    void fetchBatteryTelemetry();
+    void onBatteryReplyFinished(QNetworkReply *reply);
 
     const app::ConfigManager *m_config{nullptr};
     QNetworkAccessManager *m_nam{nullptr};
     QPointer<QNetworkReply> m_activeReply;
+    QPointer<QNetworkReply> m_batteryReply;
     QTimer *m_pollTimer{nullptr};
     double m_generationKw{0.0};
     double m_consumptionKw{0.0};
@@ -84,6 +91,9 @@ private:
     QString m_dailyConsumptionText;
     QString m_netText{QStringLiteral("0.0 kW")};
     QString m_lastUpdatedText;
+    int m_batteryPercentage{100};
+    bool m_hasBattery{false};
+    bool m_hasNotifiedLowBattery{false};
     bool m_enabled{false};
     bool m_available{false};
     bool m_fetchInFlight{false};
