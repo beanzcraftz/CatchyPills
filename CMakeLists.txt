@@ -123,3 +123,13 @@ install(TARGETS catchypills
 install(FILES packaging/io.beanzcraftz.CatchyPills.desktop
     DESTINATION "${CMAKE_INSTALL_DATADIR}/applications"
 )
+
+install(FILES assets/logo.png
+    DESTINATION "${CMAKE_INSTALL_DATADIR}/icons/hicolor/128x128/apps"
+    RENAME catchypills.png
+)
+
+install(FILES assets/logo.png
+    DESTINATION "${CMAKE_INSTALL_DATADIR}/pixmaps"
+    RENAME catchypills.png
+)

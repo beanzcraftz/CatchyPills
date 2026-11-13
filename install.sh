@@ -68,6 +68,8 @@ if [[ -f "CMakeLists.txt" ]]; then
     sudo DESTDIR=/ cmake --install build
     sudo install -Dm755 "daemon/target/release/catchypillsd" "/usr/bin/catchypillsd"
     sudo install -Dm644 "packaging/catchypillsd.service" "/usr/lib/systemd/user/catchypillsd.service"
+    mkdir -p "$HOME/.local/bin"
+    install -Dm755 "build/catchypills" "$HOME/.local/bin/catchypills"
     DESKTOP_SRC="packaging/io.beanzcraftz.CatchyPills.desktop"
 else
     echo "==> Installing prebuilt CatchyPills v1.1 release binaries..."
@@ -76,7 +78,31 @@ else
     sudo install -Dm644 "io.beanzcraftz.CatchyPills.desktop" \
         "/usr/share/applications/io.beanzcraftz.CatchyPills.desktop"
     sudo install -Dm644 "catchypillsd.service" "/usr/lib/systemd/user/catchypillsd.service"
+    mkdir -p "$HOME/.local/bin"
+    install -Dm755 "catchypills" "$HOME/.local/bin/catchypills"
     DESKTOP_SRC="io.beanzcraftz.CatchyPills.desktop"
+fi
+
+echo "==> Installing desktop icon and application shortcuts..."
+if [[ -f "assets/logo.png" ]]; then
+    sudo install -Dm644 "assets/logo.png" "/usr/share/icons/hicolor/128x128/apps/catchypills.png"
+    sudo install -Dm644 "assets/logo.png" "/usr/share/pixmaps/catchypills.png"
+    mkdir -p "$HOME/.local/share/icons/hicolor/128x128/apps"
+    mkdir -p "$HOME/.local/share/pixmaps"
+    install -Dm644 "assets/logo.png" "$HOME/.local/share/icons/hicolor/128x128/apps/catchypills.png"
+    install -Dm644 "assets/logo.png" "$HOME/.local/share/pixmaps/catchypills.png"
+fi
+
+# Install user application menu entry
+mkdir -p "$HOME/.local/share/applications"
+install -Dm644 "$DESKTOP_SRC" "$HOME/.local/share/applications/io.beanzcraftz.CatchyPills.desktop"
+
+# Install desktop shortcut
+if [[ -d "$HOME/Desktop" ]]; then
+    install -Dm755 "$DESKTOP_SRC" "$HOME/Desktop/CatchyPills.desktop"
+    if command -v gio >/dev/null 2>&1; then
+        gio set "$HOME/Desktop/CatchyPills.desktop" metadata::trusted true >/dev/null 2>&1 || true
+    fi
 fi
 
 # Install per-user autostart entry so the Settings "Start with System" toggle can
@@ -84,6 +110,10 @@ fi
 mkdir -p "$HOME/.config/autostart"
 install -Dm644 "$DESKTOP_SRC" \
     "$HOME/.config/autostart/io.beanzcraftz.CatchyPills.desktop"
+
+if command -v gtk-update-icon-cache >/dev/null 2>&1; then
+    gtk-update-icon-cache -f -t "$HOME/.local/share/icons/hicolor" >/dev/null 2>&1 || true
+fi
 
 if command -v kbuildsycoca6 >/dev/null 2>&1; then
     kbuildsycoca6 --noincremental >/dev/null 2>&1 || true

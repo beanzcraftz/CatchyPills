@@ -7,7 +7,6 @@ Icon=catchypills
 Type=Application
 Terminal=false
 StartupNotify=false
-OnlyShowIn=KDE;
 Categories=Utility;Graphics;
 # Phase 2 starts after Plasma shell/panels/KWin compositor initialization completes.
 X-KDE-autostart-phase=2
