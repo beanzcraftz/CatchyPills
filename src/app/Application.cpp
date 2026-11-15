@@ -83,7 +83,7 @@ bool Application::initialize()
     m_peripheralController = new peripheral::PeripheralController(this);
     m_solarController = new solar::SolarController(m_configManager, this);
     m_sysMonController = new sysmon::SysMonController(this);
-    m_weatherController = new weather::WeatherController(this);
+    m_weatherController = new weather::WeatherController(m_configManager, this);
     m_worklogController = new worklog::WorklogController(m_configManager, this);
     m_captureCoordinator = new capture::CaptureCoordinator(m_imageProvider, this);
     m_islandLayer = new wayland::LayerSurfaceController(nullptr, this);

@@ -41,6 +41,73 @@ Item {
         searchPaletteView.focusInput()
     }
 
+    function mapWeatherIcon(state) {
+        if (!state || state === "" || state === "unavailable") {
+            return "🌡️"
+        }
+        var s = state.toLowerCase().trim()
+        switch (s) {
+        case "sunny":
+        case "clear":
+            return "☀️"
+        case "clear-night":
+            return "🌙"
+        case "partlycloudy":
+        case "partly-cloudy":
+            return "⛅"
+        case "cloudy":
+        case "overcast":
+            return "☁️"
+        case "rainy":
+        case "pouring":
+            return "🌧️"
+        case "lightning":
+        case "lightning-rainy":
+        case "thunderstorm":
+            return "⛈️"
+        case "snowy":
+        case "snowy-rainy":
+        case "hail":
+            return "🌨️"
+        case "fog":
+            return "🌫️"
+        case "windy":
+        case "windy-variant":
+            return "💨"
+        default:
+            return "🌤️"
+        }
+    }
+
+    function formatWeatherState(state) {
+        if (!state || state === "" || state === "unavailable") {
+            return "Unavailable"
+        }
+        var s = state.toLowerCase().trim()
+        switch (s) {
+        case "sunny": return "Sunny"
+        case "clear": return "Clear"
+        case "clear-night": return "Clear Night"
+        case "partlycloudy":
+        case "partly-cloudy": return "Partly Cloudy"
+        case "cloudy": return "Cloudy"
+        case "overcast": return "Overcast"
+        case "rainy": return "Rainy"
+        case "pouring": return "Heavy Rain"
+        case "lightning": return "Lightning"
+        case "lightning-rainy": return "Thunderstorms & Rain"
+        case "thunderstorm": return "Thunderstorm"
+        case "snowy": return "Snowy"
+        case "snowy-rainy": return "Snow & Rain"
+        case "hail": return "Hail"
+        case "fog": return "Foggy"
+        case "windy":
+        case "windy-variant": return "Windy"
+        default:
+            return state.charAt(0).toUpperCase() + state.slice(1)
+        }
+    }
+
     ColumnLayout {
         anchors.fill: parent
         anchors.margins: 16
@@ -229,7 +296,7 @@ Item {
                 }
             }
 
-            // Cached 30-min Open-Meteo weather badge + 7-day forecast popup
+            // Local Home Assistant weather badge + 7-day forecast popup
             Item {
                 id: weatherPillItem
                 implicitWidth: weatherRow.implicitWidth + 18
@@ -259,10 +326,7 @@ Item {
 
                     ToolTip.visible: weatherHover.hovered && !forecastPopup.opened
                     ToolTip.delay: 300
-                    ToolTip.text: weatherController.conditionSummary
-                                  + (weatherController.lastUpdatedText !== ""
-                                     ? "\nUpdated " + weatherController.lastUpdatedText + " • Click for 7-day forecast"
-                                     : "\nClick for 7-day forecast")
+                    ToolTip.text: root.formatWeatherState(weatherController.weatherState)
 
                     Row {
                         id: weatherRow
@@ -272,7 +336,7 @@ Item {
                         Label {
                             anchors.verticalCenter: parent.verticalCenter
                             font.pixelSize: 13
-                            text: weatherController.conditionIcon
+                            text: root.mapWeatherIcon(weatherController.weatherState)
                         }
 
                         Label {
@@ -280,7 +344,7 @@ Item {
                             color: "#e2e8f0"
                             font.pixelSize: 12
                             font.weight: Font.Medium
-                            text: weatherController.temperatureText
+                            text: weatherController.weatherTemp
                         }
                     }
 
@@ -376,7 +440,7 @@ Item {
                             wrapMode: Text.WordWrap
                             color: "#94a3b8"
                             font.pixelSize: 10
-                            text: weatherController.conditionSummary
+                            text: root.formatWeatherState(weatherController.weatherState)
                                   + (weatherController.lastUpdatedText !== ""
                                      ? " • Updated " + weatherController.lastUpdatedText
                                      : "")
