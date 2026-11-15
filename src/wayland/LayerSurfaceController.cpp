@@ -438,8 +438,16 @@ void LayerSurfaceController::updateInputRegion(const QRect &pillRect, int corner
     m_lastPillRect = pillRect;
     m_lastCornerRadius = cornerRadius;
 
-    if (m_clickThrough) {
+    if (!pillRect.isValid() || pillRect.isEmpty()) {
+        setClickThrough(true);
         return;
+    }
+
+    if (m_clickThrough) {
+        m_clickThrough = false;
+        m_maskBypassed = false;
+        m_window->setFlag(Qt::WindowTransparentForInput, false);
+        Q_EMIT clickThroughChanged(false);
     }
 
     if (m_dragActive) {
@@ -492,7 +500,7 @@ void LayerSurfaceController::setDragActive(bool active)
     }
     Q_EMIT dragActiveChanged(m_dragActive);
 
-    if (!m_window || m_clickThrough) {
+    if (!m_window) {
         return;
     }
 

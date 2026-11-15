@@ -39,11 +39,13 @@ Window {
         onStarted: {
             if (root.hasLayer) {
                 layerController.dragActive = true
+                layerController.setClickThrough(false)
             }
         }
         onFinished: {
             if (root.hasLayer) {
                 layerController.dragActive = false
+                layerController.setClickThrough(false)
             }
             pillContainer.syncMask()
             idleTimer.restart()
@@ -67,6 +69,7 @@ Window {
             if (root.hasLayer) {
                 layerController.dragActive = false
                 layerController.setKeyboardInteractive(false)
+                layerController.setClickThrough(true)
             }
             pillContainer.state = "collapsed"
             dashboard.closePopups()
@@ -80,7 +83,7 @@ Window {
         running: false
         repeat: false
         onTriggered: {
-            if (dashboard.searchInputFocused || dashboard.weatherPopupOpen) {
+            if (pillContainer.state === "expanded" || dashboard.searchInputFocused || dashboard.weatherPopupOpen) {
                 idleTimer.restart()
                 return
             }
@@ -155,25 +158,6 @@ Window {
         id: dragThrottle
         interval: 32
         repeat: false
-    }
-
-    MouseArea {
-        id: idleDetector
-        anchors.fill: parent
-        hoverEnabled: true
-        acceptedButtons: Qt.NoButton
-        propagateComposedEvents: true
-
-        onPositionChanged: {
-            if (root.y >= 0) {
-                idleTimer.restart()
-            }
-        }
-        onContainsMouseChanged: {
-            if (root.y >= 0) {
-                idleTimer.restart()
-            }
-        }
     }
 
     Item {
@@ -280,6 +264,11 @@ Window {
                         if (!collapsedHud.repositioning) {
                             collapseDelay.restart()
                         }
+                    }
+                }
+                onPointChanged: {
+                    if (root.y >= 0) {
+                        idleTimer.restart()
                     }
                 }
             }
