@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QDateTime>
+#include <QJsonArray>
 #include <QObject>
 #include <QPointer>
 #include <QString>
@@ -17,7 +18,7 @@ class ConfigManager;
 namespace catchypills::weather {
 
 /**
- * Fetches current weather and forecast telemetry from local Home Assistant REST API.
+ * Fetches current weather and 7-day forecast telemetry from Home Assistant REST API.
  */
 class WeatherController final : public QObject
 {
@@ -25,13 +26,14 @@ class WeatherController final : public QObject
     // HA telemetry properties
     Q_PROPERTY(QString weatherTemp READ weatherTemp NOTIFY weatherUpdated)
     Q_PROPERTY(QString weatherState READ weatherState NOTIFY weatherUpdated)
+    Q_PROPERTY(QVariantList weatherForecast READ weatherForecast NOTIFY weatherForecastChanged)
 
     // Backwards-compatible properties
     Q_PROPERTY(QString temperatureText READ temperatureText NOTIFY weatherUpdated)
     Q_PROPERTY(QString conditionIcon READ conditionIcon NOTIFY weatherUpdated)
     Q_PROPERTY(QString conditionSummary READ conditionSummary NOTIFY weatherUpdated)
     Q_PROPERTY(QString lastUpdatedText READ lastUpdatedText NOTIFY weatherUpdated)
-    Q_PROPERTY(QVariantList forecastData READ forecastData NOTIFY weatherUpdated)
+    Q_PROPERTY(QVariantList forecastData READ forecastData NOTIFY weatherForecastChanged)
     Q_PROPERTY(double latitude READ latitude NOTIFY coordinatesChanged)
     Q_PROPERTY(double longitude READ longitude NOTIFY coordinatesChanged)
     Q_PROPERTY(bool available READ isAvailable NOTIFY weatherUpdated)
@@ -44,11 +46,13 @@ public:
 
     QString weatherTemp() const { return m_weatherTemp; }
     QString weatherState() const { return m_weatherState; }
+    QVariantList weatherForecast() const { return m_weatherForecast; }
+
     QString temperatureText() const { return m_weatherTemp; }
     QString conditionIcon() const { return m_conditionIcon; }
     QString conditionSummary() const { return m_conditionSummary; }
     QString lastUpdatedText() const { return m_lastUpdatedText; }
-    QVariantList forecastData() const { return m_forecastData; }
+    QVariantList forecastData() const { return m_weatherForecast; }
     double latitude() const noexcept { return m_latitude; }
     double longitude() const noexcept { return m_longitude; }
     bool isAvailable() const noexcept { return m_available; }
@@ -58,11 +62,13 @@ public:
 
 Q_SIGNALS:
     void weatherUpdated();
+    void weatherForecastChanged();
     void coordinatesChanged();
 
 private:
     void onReplyFinished(QNetworkReply *reply);
     void fetchForecast();
+    void parseForecastArray(const QJsonArray &forecastArr);
     QString resolveHaBaseUrl() const;
     QString resolveApiKey() const;
     QString resolveEntityId() const;
@@ -75,7 +81,7 @@ private:
     QPointer<QNetworkReply> m_forecastReply;
     QTimer *m_pollTimer{nullptr};
     QDateTime m_lastFetchedAt;
-    QVariantList m_forecastData;
+    QVariantList m_weatherForecast;
     QString m_weatherTemp{QStringLiteral("--°C")};
     QString m_weatherState{QStringLiteral("unavailable")};
     QString m_conditionIcon{QStringLiteral("🌤️")};

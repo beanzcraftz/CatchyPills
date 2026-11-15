@@ -454,7 +454,7 @@ Item {
 
                         Label {
                             Layout.fillWidth: true
-                            visible: weatherController.forecastData.length === 0
+                            visible: weatherController.weatherForecast.length === 0
                             horizontalAlignment: Text.AlignHCenter
                             color: "#64748b"
                             font.pixelSize: 11
@@ -463,11 +463,11 @@ Item {
 
                         ColumnLayout {
                             Layout.fillWidth: true
-                            visible: weatherController.forecastData.length > 0
+                            visible: weatherController.weatherForecast.length > 0
                             spacing: 6
 
                             Repeater {
-                                model: weatherController.forecastData
+                                model: weatherController.weatherForecast
 
                                 delegate: RowLayout {
                                     id: forecastDayRow
@@ -476,41 +476,30 @@ Item {
                                     spacing: 8
 
                                     Label {
-                                        Layout.preferredWidth: 40
+                                        Layout.preferredWidth: 38
                                         color: "#e2e8f0"
                                         font.pixelSize: 11
                                         font.weight: Font.DemiBold
-                                        text: forecastDayRow.modelData.dayOfWeek
+                                        text: forecastDayRow.modelData.dayOfWeek || forecastDayRow.modelData.day
                                     }
 
                                     Label {
                                         Layout.preferredWidth: 24
                                         horizontalAlignment: Text.AlignHCenter
                                         font.pixelSize: 13
-                                        text: forecastDayRow.modelData.icon
+                                        text: root.mapWeatherIcon(forecastDayRow.modelData.condition)
                                     }
 
                                     Item { Layout.fillWidth: true }
 
                                     Label {
-                                        color: "#94a3b8"
-                                        font.pixelSize: 11
-                                        font.family: "monospace"
-                                        text: forecastDayRow.modelData.minTemp + "°"
-                                    }
-
-                                    Label {
-                                        color: "#64748b"
-                                        font.pixelSize: 10
-                                        text: "-"
-                                    }
-
-                                    Label {
+                                        Layout.fillWidth: true
+                                        horizontalAlignment: Text.AlignRight
                                         color: "#00e5a3"
                                         font.pixelSize: 11
-                                        font.weight: Font.DemiBold
+                                        font.weight: Font.Medium
                                         font.family: "monospace"
-                                        text: forecastDayRow.modelData.maxTemp + "°"
+                                        text: forecastDayRow.modelData.temperature + "° / " + forecastDayRow.modelData.templow + "°"
                                     }
                                 }
                             }

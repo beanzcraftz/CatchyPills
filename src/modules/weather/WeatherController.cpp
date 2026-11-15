@@ -207,6 +207,16 @@ void WeatherController::onReplyFinished(QNetworkReply *reply)
 
     Q_EMIT weatherUpdated();
 
+    // If older HA provides attributes.forecast array directly, parse it immediately.
+    // Otherwise, dispatch to modern HA (2024.4+) /api/services/weather/get_forecasts.
+    if (attrs.contains(QStringLiteral("forecast"))) {
+        const QJsonArray forecastArr = attrs.value(QStringLiteral("forecast")).toArray();
+        if (!forecastArr.isEmpty()) {
+            parseForecastArray(forecastArr);
+            return;
+        }
+    }
+
     fetchForecast();
 }
 
@@ -253,37 +263,83 @@ void WeatherController::fetchForecast()
         }
 
         const QJsonObject root = doc.object();
-        const QJsonObject srvResp = root.value(QStringLiteral("service_response")).toObject();
-        const QJsonObject entObj = srvResp.value(entityId).toObject();
-        const QJsonArray forecastArr = entObj.value(QStringLiteral("forecast")).toArray();
-        if (forecastArr.isEmpty()) {
-            return;
+        QJsonArray forecastArr;
+
+        if (root.contains(QStringLiteral("service_response"))) {
+            const QJsonObject srvResp = root.value(QStringLiteral("service_response")).toObject();
+            if (srvResp.contains(entityId)) {
+                forecastArr = srvResp.value(entityId).toObject().value(QStringLiteral("forecast")).toArray();
+            } else if (srvResp.contains(QStringLiteral("forecast"))) {
+                forecastArr = srvResp.value(QStringLiteral("forecast")).toArray();
+            }
+        } else if (root.contains(QStringLiteral("response"))) {
+            const QJsonObject srvResp = root.value(QStringLiteral("response")).toObject();
+            if (srvResp.contains(entityId)) {
+                forecastArr = srvResp.value(entityId).toObject().value(QStringLiteral("forecast")).toArray();
+            }
+        } else if (root.contains(QStringLiteral("forecast"))) {
+            forecastArr = root.value(QStringLiteral("forecast")).toArray();
         }
 
-        QVariantList nextForecast;
-        for (const QJsonValue &val : forecastArr) {
-            const QJsonObject dayObj = val.toObject();
-            const QString dtStr = dayObj.value(QStringLiteral("datetime")).toString();
-            const QDateTime dt = QDateTime::fromString(dtStr, Qt::ISODate);
-            const QString dayOfWeek = dt.isValid()
-                ? QLocale::c().toString(dt.date(), QStringLiteral("ddd"))
-                : dtStr.left(10);
-            const QString cond = dayObj.value(QStringLiteral("condition")).toString();
-            const int maxT = static_cast<int>(std::lround(dayObj.value(QStringLiteral("temperature")).toDouble(0.0)));
-            const int minT = static_cast<int>(std::lround(dayObj.value(QStringLiteral("templow")).toDouble(0.0)));
-
-            QVariantMap entry;
-            entry.insert(QStringLiteral("dayOfWeek"), dayOfWeek);
-            entry.insert(QStringLiteral("maxTemp"), maxT);
-            entry.insert(QStringLiteral("minTemp"), minT);
-            entry.insert(QStringLiteral("icon"), mapHaStateToIcon(cond));
-            entry.insert(QStringLiteral("condition"), formatHaState(cond));
-            nextForecast.append(entry);
+        if (!forecastArr.isEmpty()) {
+            parseForecastArray(forecastArr);
         }
-
-        m_forecastData = std::move(nextForecast);
-        Q_EMIT weatherUpdated();
     });
+}
+
+void WeatherController::parseForecastArray(const QJsonArray &forecastArr)
+{
+    if (forecastArr.isEmpty()) {
+        return;
+    }
+
+    QVariantList nextForecast;
+    for (const QJsonValue &val : forecastArr) {
+        if (!val.isObject()) {
+            continue;
+        }
+        const QJsonObject dayObj = val.toObject();
+
+        // 1. datetime -> Day of the week
+        const QString dtStr = dayObj.value(QStringLiteral("datetime")).toString();
+        const QDateTime dt = QDateTime::fromString(dtStr, Qt::ISODate);
+        const QString dayOfWeek = dt.isValid()
+            ? QLocale::c().toString(dt.date(), QStringLiteral("ddd"))
+            : (dtStr.length() >= 10 ? dtStr.left(10) : dtStr);
+
+        // 2. condition
+        const QString cond = dayObj.value(QStringLiteral("condition")).toString();
+
+        // 3. temperature (High) & templow (Low)
+        const double highTemp = dayObj.contains(QStringLiteral("temperature"))
+            ? dayObj.value(QStringLiteral("temperature")).toDouble(0.0)
+            : 0.0;
+        const double lowTemp = dayObj.contains(QStringLiteral("templow"))
+            ? dayObj.value(QStringLiteral("templow")).toDouble(highTemp)
+            : highTemp;
+
+        const int highInt = static_cast<int>(std::lround(highTemp));
+        const int lowInt = static_cast<int>(std::lround(lowTemp));
+        const QString tempRange = QStringLiteral("%1° / %2°").arg(highInt).arg(lowInt);
+
+        QVariantMap entry;
+        entry.insert(QStringLiteral("datetime"), dtStr);
+        entry.insert(QStringLiteral("dayOfWeek"), dayOfWeek);
+        entry.insert(QStringLiteral("day"), dayOfWeek);
+        entry.insert(QStringLiteral("condition"), cond);
+        entry.insert(QStringLiteral("temperature"), highInt);
+        entry.insert(QStringLiteral("templow"), lowInt);
+        entry.insert(QStringLiteral("maxTemp"), highInt);
+        entry.insert(QStringLiteral("minTemp"), lowInt);
+        entry.insert(QStringLiteral("tempRange"), tempRange);
+        entry.insert(QStringLiteral("icon"), mapHaStateToIcon(cond));
+        entry.insert(QStringLiteral("conditionSummary"), formatHaState(cond));
+        nextForecast.append(entry);
+    }
+
+    m_weatherForecast = nextForecast;
+    Q_EMIT weatherForecastChanged();
+    Q_EMIT weatherUpdated();
 }
 
 QString WeatherController::mapHaStateToIcon(const QString &state)
