@@ -11,19 +11,19 @@ import QtQuick.Layouts
 Item {
     id: root
 
-    property int activeTab: 0 // 0 = Clipboard, 1 = IoT, 2 = Cameras, 3 = Media, 4 = Notes, 5 = Search, 6 = Capture, 7 = ITSM
+    property int activeTab: 0 // 0 = Media, 1 = Search, 2 = Notes, 3 = ITSM, 4 = Capture, 5 = IoT, 6 = Cameras
     readonly property bool searchInputFocused: searchPaletteView.inputFocused || notesView.inputFocused || itsmView.inputFocused
     readonly property bool weatherPopupOpen: forecastPopup.opened
 
     Connections {
         target: configManager
         function onEnableIoTChanged() {
-            if (!configManager.enableIoT && root.activeTab === 1) {
+            if (!configManager.enableIoT && root.activeTab === 5) {
                 root.activeTab = 0
             }
         }
         function onEnableITSMChanged() {
-            if (!configManager.enableITSM && root.activeTab === 7) {
+            if (!configManager.enableITSM && root.activeTab === 3) {
                 root.activeTab = 0
             }
         }
@@ -37,7 +37,7 @@ Item {
     }
 
     function focusSearch() {
-        activeTab = 5
+        activeTab = 1
         searchPaletteView.focusInput()
     }
 
@@ -120,14 +120,13 @@ Item {
 
             Repeater {
                 model: [
-                    { label: "Clipboard", tip: "Recent clipboard history captured securely over Wayland" },
-                    { label: "IoT", tip: "Trigger Alexa & workshop smart device controls" },
-                    { label: "Cameras", tip: "Live acreage camera feeds (Carport & Driveway)" },
                     { label: "Media", tip: "SpotiBar MPRIS2 playback controls & animated equalizer" },
-                    { label: "Notes", tip: "Quick persistent SQLite To-Do notes & thoughts" },
                     { label: "Search", tip: "Search indexed local files or query DuckDuckGo on the web" },
+                    { label: "Notes", tip: "Quick persistent SQLite To-Do notes & thoughts" },
+                    { label: "ITSM", tip: "ServiceNow KB HTML template prompt generator" },
                     { label: "Capture", tip: "OmniShot region screenshots, annotations & screen recording" },
-                    { label: "ITSM", tip: "ServiceNow KB HTML template prompt generator" }
+                    { label: "IoT", tip: "Trigger Alexa & workshop smart device controls" },
+                    { label: "Cameras", tip: "Live acreage camera feeds (Carport & Driveway)" }
                 ]
 
                 delegate: Item {
@@ -188,17 +187,15 @@ Item {
                             onClicked: {
                                 root.activeTab = tabItem.index
                                 if (tabItem.index === 0) {
-                                    daemonClient.refreshClips()
-                                } else if (tabItem.index === 2) {
-                                    cameraTab.refreshCameras()
-                                } else if (tabItem.index === 3) {
                                     mprisController.refresh()
-                                } else if (tabItem.index === 4) {
-                                    notesView.focusInput()
-                                } else if (tabItem.index === 5) {
+                                } else if (tabItem.index === 1) {
                                     searchPaletteView.focusInput()
-                                } else if (tabItem.index === 7) {
+                                } else if (tabItem.index === 2) {
+                                    notesView.focusInput()
+                                } else if (tabItem.index === 3) {
                                     itsmView.focusInput()
+                                } else if (tabItem.index === 6) {
+                                    cameraTab.refreshCameras()
                                 }
                             }
                         }
@@ -711,39 +708,30 @@ Item {
                 Layout.fillHeight: true
                 currentIndex: root.activeTab
 
-                // 0. ClipboardView
-                ClipboardView {
-                    id: clipboardView
-                }
-
-                // 1. Bespoke IoT Control Grid
-                IoTView {
-                    id: iotView
-                    visible: configManager.enableIoT
-                }
-
-                // 2. Acreage Camera Feeds
-                CameraTab {
-                    id: cameraTab
-                }
-
-                // 3. SpotiBar MediaView
+                // 0. SpotiBar MediaView
                 MediaView {
                     id: mediaView
                 }
 
-                // 4. Persistent NotesView
+                // 1. Unified SearchPaletteView (Local Files | Web Search)
+                SearchPaletteView {
+                    id: searchPaletteView
+                    onCollapseRequested: root.collapseRequested()
+                    onCollapseImmediatelyRequested: root.collapseImmediatelyRequested()
+                }
+
+                // 2. Persistent NotesView
                 NotesView {
                     id: notesView
                     onCollapseRequested: root.collapseRequested()
                 }
 
-                // 5. Unified SearchPaletteView (Local Files | Web Search)
-                SearchPaletteView {
-                id: searchPaletteView
-                onCollapseRequested: root.collapseRequested()
-                onCollapseImmediatelyRequested: root.collapseImmediatelyRequested()
-            }
+                // 3. Bespoke ServiceNow ITSM Template Prompt Generator
+                ITSMView {
+                    id: itsmView
+                    visible: configManager.enableITSM
+                    onCollapseRequested: root.collapseRequested()
+                }
 
             // 5. OmniShot Capture & Region Recording Workflow
             ColumnLayout {
@@ -984,12 +972,16 @@ Item {
                 }
             }
 
-            // 6. Bespoke ServiceNow ITSM Template Prompt Generator
-            ITSMView {
-                id: itsmView
-                visible: configManager.enableITSM
-                onCollapseRequested: root.collapseRequested()
-            }
+                // 5. Bespoke IoT Control Grid
+                IoTView {
+                    id: iotView
+                    visible: configManager.enableIoT
+                }
+
+                // 6. Acreage Camera Feeds
+                CameraTab {
+                    id: cameraTab
+                }
         }
         }
     }
