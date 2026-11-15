@@ -7,6 +7,7 @@
 #include "modules/itsm/ITSMController.hpp"
 #include "modules/media/MprisController.hpp"
 #include "modules/notes/NotesModel.hpp"
+#include "modules/peripheral/PeripheralController.hpp"
 #include "modules/solar/SolarController.hpp"
 #include "modules/sysmon/SysMonController.hpp"
 #include "modules/weather/WeatherController.hpp"
@@ -79,6 +80,7 @@ bool Application::initialize()
     m_itsmController = new itsm::ITSMController(this);
     m_mprisController = new media::MprisController(this);
     m_notesModel = new notes::NotesModel(this);
+    m_peripheralController = new peripheral::PeripheralController(this);
     m_solarController = new solar::SolarController(m_configManager, this);
     m_sysMonController = new sysmon::SysMonController(this);
     m_weatherController = new weather::WeatherController(this);
@@ -139,6 +141,7 @@ bool Application::initialize()
     m_engine->rootContext()->setContextProperty(QStringLiteral("itsmController"), m_itsmController);
     m_engine->rootContext()->setContextProperty(QStringLiteral("mprisController"), m_mprisController);
     m_engine->rootContext()->setContextProperty(QStringLiteral("notesModel"), m_notesModel);
+    m_engine->rootContext()->setContextProperty(QStringLiteral("peripheralController"), m_peripheralController);
     m_engine->rootContext()->setContextProperty(QStringLiteral("solarController"), m_solarController);
     m_engine->rootContext()->setContextProperty(QStringLiteral("sysMonController"), m_sysMonController);
     m_engine->rootContext()->setContextProperty(QStringLiteral("weatherController"), m_weatherController);

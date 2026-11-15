@@ -36,6 +36,10 @@ namespace catchypills::notes {
 class NotesModel;
 }
 
+namespace catchypills::peripheral {
+class PeripheralController;
+}
+
 namespace catchypills::solar {
 class SolarController;
 }
@@ -110,6 +114,7 @@ private:
     itsm::ITSMController *m_itsmController{nullptr};
     media::MprisController *m_mprisController{nullptr};
     notes::NotesModel *m_notesModel{nullptr};
+    peripheral::PeripheralController *m_peripheralController{nullptr};
     solar::SolarController *m_solarController{nullptr};
     sysmon::SysMonController *m_sysMonController{nullptr};
     weather::WeatherController *m_weatherController{nullptr};

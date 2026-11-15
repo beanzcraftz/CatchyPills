@@ -13,6 +13,7 @@ Item {
     readonly property var devices: [
         { deviceId: "office_ac", label: "Gree AC", subtitle: "Office Climate", icon: "❄️", accent: "#38bdf8" },
         { deviceId: "bluetti_ac200", label: "Bluetti AC200", subtitle: "Power Station", icon: "🔋", accent: "#00e5a3" },
+        { deviceId: "g502_mouse", label: "G502 X PLUS", subtitle: "Gaming Mouse", icon: "🖱️", accent: "#38bdf8" },
         { deviceId: "office_fan", label: "Arlec Fan", subtitle: "Airflow", icon: "🌀", accent: "#2dd4bf" },
         { deviceId: "office_outlet", label: "Power Outlet", subtitle: "Grid Socket", icon: "🔌", accent: "#f59e0b" },
         { deviceId: "office_lamp", label: "Desk Lamp", subtitle: "Olamp", icon: "💡", accent: "#00e5a3" }
@@ -110,7 +111,8 @@ Item {
                         required property var modelData
                         readonly property bool isClimateTile: iotTile.modelData.deviceId === "office_ac"
                         readonly property bool isBluettiTile: iotTile.modelData.deviceId === "bluetti_ac200"
-                        readonly property bool isCustomTile: iotTile.isClimateTile || iotTile.isBluettiTile
+                        readonly property bool isMouseTile: iotTile.modelData.deviceId === "g502_mouse"
+                        readonly property bool isCustomTile: iotTile.isClimateTile || iotTile.isBluettiTile || iotTile.isMouseTile
                         property int currentTemp: 22
                         property string currentMode: "cool"
                         property string currentFanMode: "auto"
@@ -166,7 +168,9 @@ Item {
                                         font.pixelSize: 10
                                         text: iotTile.isBluettiTile && solarController.hasBattery
                                               ? (solarController.batteryPercentage + "% Battery")
-                                              : iotTile.modelData.subtitle
+                                              : (iotTile.isMouseTile
+                                                 ? (peripheralController.connected ? peripheralController.statusText : "Logitech Lightspeed")
+                                                 : iotTile.modelData.subtitle)
                                     }
                                 }
 
@@ -217,6 +221,36 @@ Item {
                                         font.pixelSize: 9
                                         font.weight: Font.DemiBold
                                         text: solarController.batteryPercentage + "%"
+                                    }
+                                }
+
+                                // Battery badge for G502 X PLUS tile
+                                Rectangle {
+                                    visible: iotTile.isMouseTile
+                                    Layout.preferredWidth: mouseBattBadgeLbl.implicitWidth + 12
+                                    Layout.preferredHeight: 18
+                                    radius: 6
+                                    color: peripheralController.connected
+                                           ? (peripheralController.batteryPercentage >= 0 && peripheralController.batteryPercentage <= 20
+                                              ? Qt.rgba(0.94, 0.27, 0.27, 0.22)
+                                              : Qt.rgba(0.0, 0.90, 0.64, 0.18))
+                                           : Qt.rgba(1, 1, 1, 0.06)
+                                    border.width: 1
+                                    border.color: peripheralController.connected
+                                                  ? (peripheralController.batteryPercentage >= 0 && peripheralController.batteryPercentage <= 20
+                                                     ? "#ef4444"
+                                                     : Qt.rgba(0.0, 0.90, 0.64, 0.45))
+                                                  : Qt.rgba(1, 1, 1, 0.10)
+
+                                    Label {
+                                        id: mouseBattBadgeLbl
+                                        anchors.centerIn: parent
+                                        color: peripheralController.connected
+                                               ? (peripheralController.batteryPercentage >= 0 && peripheralController.batteryPercentage <= 20 ? "#ef4444" : "#00e5a3")
+                                               : "#94a3b8"
+                                        font.pixelSize: 9
+                                        font.weight: Font.DemiBold
+                                        text: peripheralController.connected ? peripheralController.mouseBattery : "Asleep"
                                     }
                                 }
                             }
@@ -587,6 +621,136 @@ Item {
                                             anchors.fill: parent
                                             cursorShape: Qt.PointingHandCursor
                                             onClicked: iotController.toggleBluettiDc(!iotController.bluettiDcOn)
+                                        }
+                                    }
+                                }
+                            }
+
+                            // G502 X PLUS Telemetry (DPI and Battery)
+                            ColumnLayout {
+                                visible: iotTile.isMouseTile
+                                Layout.fillWidth: true
+                                spacing: 6
+
+                                // Top half: Display DPI and Battery side-by-side
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 6
+
+                                    // DPI Readout
+                                    Rectangle {
+                                        Layout.fillWidth: true
+                                        Layout.preferredHeight: 26
+                                        radius: 6
+                                        color: Qt.rgba(0, 0, 0, 0.25)
+                                        border.width: 1
+                                        border.color: Qt.rgba(1, 1, 1, 0.08)
+
+                                        RowLayout {
+                                            anchors.centerIn: parent
+                                            spacing: 5
+
+                                            Label {
+                                                font.pixelSize: 10
+                                                text: "🎯"
+                                            }
+
+                                            Label {
+                                                color: "#38bdf8"
+                                                font.pixelSize: 11
+                                                font.weight: Font.DemiBold
+                                                text: peripheralController.connected ? peripheralController.mouseDpi : "-- DPI"
+                                            }
+                                        }
+                                    }
+
+                                    // Battery Readout
+                                    Rectangle {
+                                        Layout.fillWidth: true
+                                        Layout.preferredHeight: 26
+                                        radius: 6
+                                        color: Qt.rgba(0, 0, 0, 0.25)
+                                        border.width: 1
+                                        border.color: Qt.rgba(1, 1, 1, 0.08)
+
+                                        RowLayout {
+                                            anchors.centerIn: parent
+                                            spacing: 5
+
+                                            Label {
+                                                font.pixelSize: 10
+                                                text: "🔋"
+                                            }
+
+                                            Label {
+                                                color: peripheralController.connected && peripheralController.batteryPercentage <= 20 ? "#ef4444" : "#00e5a3"
+                                                font.pixelSize: 11
+                                                font.weight: Font.DemiBold
+                                                text: peripheralController.connected ? ("Battery: " + peripheralController.mouseBattery) : "Offline"
+                                            }
+                                        }
+                                    }
+                                }
+
+                                // Bottom half: Connection state and Refresh button
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 6
+
+                                    Rectangle {
+                                        Layout.fillWidth: true
+                                        Layout.preferredHeight: 24
+                                        radius: 6
+                                        color: Qt.rgba(0, 0, 0, 0.20)
+                                        border.width: 1
+                                        border.color: Qt.rgba(1, 1, 1, 0.06)
+
+                                        RowLayout {
+                                            anchors.centerIn: parent
+                                            spacing: 6
+
+                                            Rectangle {
+                                                Layout.preferredWidth: 6
+                                                Layout.preferredHeight: 6
+                                                radius: 3
+                                                color: peripheralController.connected ? "#00e5a3" : "#64748b"
+                                            }
+
+                                            Label {
+                                                text: peripheralController.connected ? "Lightspeed Active" : "Mouse Standby"
+                                                font.pixelSize: 10
+                                                color: peripheralController.connected ? "#f8fafc" : "#94a3b8"
+                                            }
+                                        }
+                                    }
+
+                                    Rectangle {
+                                        id: syncBtn
+                                        Layout.preferredWidth: 32
+                                        Layout.preferredHeight: 24
+                                        radius: 6
+                                        color: syncMouse.pressed
+                                               ? Qt.rgba(0.0, 0.90, 0.64, 0.35)
+                                               : (syncHover.hovered ? Qt.rgba(1, 1, 1, 0.14) : Qt.rgba(1, 1, 1, 0.06))
+                                        border.width: 1
+                                        border.color: syncHover.hovered ? "#00e5a3" : Qt.rgba(1, 1, 1, 0.10)
+
+                                        HoverHandler { id: syncHover }
+                                        ToolTip.visible: syncHover.hovered
+                                        ToolTip.delay: 300
+                                        ToolTip.text: "Query Solaar Telemetry"
+
+                                        Label {
+                                            anchors.centerIn: parent
+                                            font.pixelSize: 11
+                                            text: "🔄"
+                                        }
+
+                                        MouseArea {
+                                            id: syncMouse
+                                            anchors.fill: parent
+                                            cursorShape: Qt.PointingHandCursor
+                                            onClicked: peripheralController.refresh()
                                         }
                                     }
                                 }
