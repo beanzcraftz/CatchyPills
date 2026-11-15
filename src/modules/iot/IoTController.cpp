@@ -489,4 +489,84 @@ void IoTController::setClimateTemperature(const QString &entityId, double temper
     });
 }
 
+void IoTController::setClimateFanMode(const QString &entityId, const QString &fanMode)
+{
+    QString target = entityId.trimmed();
+    if (target.isEmpty()) {
+        target = QStringLiteral("office_ac");
+    }
+    if (!target.contains(QLatin1Char('.'))) {
+        const QString resolved = resolveEntityId(target);
+        target = !resolved.isEmpty() ? resolved : QStringLiteral("climate.%1").arg(target);
+    } else if (target == QLatin1String("climate.gree_ac")) {
+        const QString envMapped = resolveEntityId(QStringLiteral("office_ac"));
+        if (!envMapped.isEmpty()) {
+            target = envMapped;
+        }
+    }
+
+    const QString haBase = resolveHaBaseUrl();
+    if (haBase.isEmpty()) {
+        m_statusText = QStringLiteral("Set Home Assistant URL in Settings or .env");
+        Q_EMIT stateChanged();
+        return;
+    }
+
+    const QUrl url(QStringLiteral("%1/api/services/climate/set_fan_mode").arg(haBase));
+    QNetworkRequest request(url);
+    request.setTransferTimeout(8000);
+    request.setHeader(QNetworkRequest::ContentTypeHeader, QStringLiteral("application/json"));
+    request.setHeader(QNetworkRequest::UserAgentHeader, QStringLiteral("CatchyPills/1.1"));
+
+    if (m_config) {
+        QString token = m_config->envValue(QStringLiteral("IOT_API_KEY")).trimmed();
+        if (token.isEmpty()) {
+            token = m_config->envValue(QStringLiteral("IOT_WEBHOOK_TOKEN")).trimmed();
+        }
+        if (!token.isEmpty()) {
+            request.setRawHeader("Authorization", QStringLiteral("Bearer %1").arg(token).toUtf8());
+        }
+    }
+
+    const QJsonObject payload{
+        {QStringLiteral("entity_id"), target},
+        {QStringLiteral("fan_mode"), fanMode.trimmed().toLower()}
+    };
+    const QByteArray body = QJsonDocument(payload).toJson(QJsonDocument::Compact);
+
+    ++m_pendingRequests;
+    m_statusText = QStringLiteral("Setting AC fan to %1...").arg(fanMode);
+    Q_EMIT stateChanged();
+
+    const QString targetForLog = target;
+    const QString fanModeForLog = fanMode;
+    QNetworkReply *reply = m_nam->post(request, body);
+    connect(reply, &QNetworkReply::finished, this, [this, reply, targetForLog, fanModeForLog]() {
+        reply->deleteLater();
+        m_pendingRequests = qMax(0, m_pendingRequests - 1);
+        const int statusCode = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+
+        if (reply->error() != QNetworkReply::NoError
+            || (statusCode != 0 && (statusCode < 200 || statusCode >= 300))) {
+            const QString detail = statusCode > 0
+                ? QStringLiteral("HTTP %1: %2").arg(statusCode).arg(reply->errorString())
+                : reply->errorString();
+            m_statusText = QStringLiteral("Failed fan (%1): %2").arg(fanModeForLog, detail);
+            Q_EMIT stateChanged();
+            return;
+        }
+
+        m_lastTriggeredDevice = targetForLog;
+        m_statusText = QStringLiteral("AC Fan: %1").arg(fanModeForLog);
+        Q_EMIT stateChanged();
+
+        QProcess::startDetached(
+            QStringLiteral("notify-send"),
+            {QStringLiteral("-a"),
+             QStringLiteral("CatchyPills IoT"),
+             QStringLiteral("AC Fan Mode Updated"),
+             QStringLiteral("%1 fan set to %2").arg(targetForLog, fanModeForLog)});
+    });
+}
+
 } // namespace catchypills::iot

@@ -103,6 +103,7 @@ Item {
                     readonly property bool isClimateTile: iotTile.modelData.deviceId === "office_ac"
                     property int currentTemp: 22
                     property string currentMode: "cool"
+                    property string currentFanMode: "auto"
                     readonly property bool isLastTriggered:
                         iotController.lastTriggeredDevice === iotTile.modelData.deviceId
                         || (iotTile.isClimateTile && (iotController.lastTriggeredDevice.indexOf("ac") !== -1 || iotController.lastTriggeredDevice.indexOf("climate") !== -1))
@@ -329,6 +330,63 @@ Item {
                                             if (iotTile.currentTemp < 30) {
                                                 iotTile.currentTemp += 1
                                                 iotController.setClimateTemperature("climate.gree_ac", iotTile.currentTemp)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Fan Speed Control Row: Auto, Low, Med, High
+                            RowLayout {
+                                Layout.fillWidth: true
+                                spacing: 4
+
+                                Repeater {
+                                    model: [
+                                        { mode: "auto", label: "Auto", tip: "Auto Fan Speed" },
+                                        { mode: "low", label: "Low", tip: "Low Fan Speed" },
+                                        { mode: "medium", label: "Med", tip: "Medium Fan Speed" },
+                                        { mode: "high", label: "High", tip: "High Fan Speed" }
+                                    ]
+
+                                    delegate: Rectangle {
+                                        id: fanBtn
+                                        required property var modelData
+                                        readonly property bool isActive: iotTile.currentFanMode === fanBtn.modelData.mode
+                                        Layout.fillWidth: true
+                                        Layout.preferredHeight: 22
+                                        radius: 6
+                                        color: fanBtnMouse.pressed
+                                               ? Qt.rgba(0.0, 0.90, 0.64, 0.35)
+                                               : (fanBtn.isActive
+                                                  ? Qt.rgba(0.0, 0.90, 0.64, 0.22)
+                                                  : (fanBtnHover.hovered ? Qt.rgba(1, 1, 1, 0.14) : Qt.rgba(1, 1, 1, 0.06)))
+                                        border.width: 1
+                                        border.color: fanBtn.isActive
+                                                      ? "#00e5a3"
+                                                      : (fanBtnHover.hovered ? Qt.rgba(1, 1, 1, 0.25) : Qt.rgba(1, 1, 1, 0.10))
+
+                                        HoverHandler { id: fanBtnHover }
+
+                                        ToolTip.visible: fanBtnHover.hovered
+                                        ToolTip.delay: 300
+                                        ToolTip.text: fanBtn.modelData.tip
+
+                                        Label {
+                                            anchors.centerIn: parent
+                                            font.pixelSize: 10
+                                            font.weight: fanBtn.isActive ? Font.DemiBold : Font.Normal
+                                            color: fanBtn.isActive ? "#00e5a3" : "#f8fafc"
+                                            text: fanBtn.modelData.label
+                                        }
+
+                                        MouseArea {
+                                            id: fanBtnMouse
+                                            anchors.fill: parent
+                                            cursorShape: Qt.PointingHandCursor
+                                            onClicked: {
+                                                iotTile.currentFanMode = fanBtn.modelData.mode
+                                                iotController.setClimateFanMode("climate.gree_ac", fanBtn.modelData.mode)
                                             }
                                         }
                                     }
