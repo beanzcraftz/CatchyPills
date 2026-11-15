@@ -373,6 +373,20 @@ Item {
                     focus: true
                     closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
 
+                    enter: Transition {
+                        ParallelAnimation {
+                            NumberAnimation { property: "opacity"; from: 0.0; to: 1.0; duration: 250; easing.type: Easing.OutCubic }
+                            NumberAnimation { property: "y"; from: forecastPopup.y - 15; to: forecastPopup.y; duration: 250; easing.type: Easing.OutCubic }
+                        }
+                    }
+
+                    exit: Transition {
+                        ParallelAnimation {
+                            NumberAnimation { property: "opacity"; from: 1.0; to: 0.0; duration: 200; easing.type: Easing.InCubic }
+                            NumberAnimation { property: "y"; from: forecastPopup.y; to: forecastPopup.y - 15; duration: 200; easing.type: Easing.InCubic }
+                        }
+                    }
+
                     background: Item {
                         RectangularShadow {
                             anchors.fill: forecastBg
