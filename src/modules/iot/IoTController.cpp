@@ -569,4 +569,138 @@ void IoTController::setClimateFanMode(const QString &entityId, const QString &fa
     });
 }
 
+void IoTController::toggleBluettiAc(bool state)
+{
+    const QString haBase = resolveHaBaseUrl();
+    if (haBase.isEmpty()) {
+        m_statusText = QStringLiteral("Set Home Assistant URL in Settings or .env");
+        Q_EMIT stateChanged();
+        return;
+    }
+
+    const QString service = state ? QStringLiteral("turn_on") : QStringLiteral("turn_off");
+    const QUrl url(QStringLiteral("%1/api/services/switch/%2").arg(haBase, service));
+    QNetworkRequest request(url);
+    request.setTransferTimeout(8000);
+    request.setHeader(QNetworkRequest::ContentTypeHeader, QStringLiteral("application/json"));
+    request.setHeader(QNetworkRequest::UserAgentHeader, QStringLiteral("CatchyPills/1.1"));
+
+    if (m_config) {
+        QString token = m_config->envValue(QStringLiteral("IOT_API_KEY")).trimmed();
+        if (token.isEmpty()) {
+            token = m_config->envValue(QStringLiteral("IOT_WEBHOOK_TOKEN")).trimmed();
+        }
+        if (!token.isEmpty()) {
+            request.setRawHeader("Authorization", QStringLiteral("Bearer %1").arg(token).toUtf8());
+        }
+    }
+
+    const QJsonObject payload{{QStringLiteral("entity_id"), QStringLiteral("switch.ac200_ac_output")}};
+    const QByteArray body = QJsonDocument(payload).toJson(QJsonDocument::Compact);
+
+    m_bluettiAcOn = state;
+    Q_EMIT bluettiSwitchesUpdated();
+
+    ++m_pendingRequests;
+    m_statusText = QStringLiteral("Turning Bluetti AC Inverter %1...").arg(state ? QStringLiteral("ON") : QStringLiteral("OFF"));
+    Q_EMIT stateChanged();
+
+    QNetworkReply *reply = m_nam->post(request, body);
+    connect(reply, &QNetworkReply::finished, this, [this, reply, state]() {
+        reply->deleteLater();
+        m_pendingRequests = qMax(0, m_pendingRequests - 1);
+        const int statusCode = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+
+        if (reply->error() != QNetworkReply::NoError
+            || (statusCode != 0 && (statusCode < 200 || statusCode >= 300))) {
+            const QString detail = statusCode > 0
+                ? QStringLiteral("HTTP %1: %2").arg(statusCode).arg(reply->errorString())
+                : reply->errorString();
+            m_statusText = QStringLiteral("Failed Bluetti AC: %1").arg(detail);
+            m_bluettiAcOn = !state;
+            Q_EMIT bluettiSwitchesUpdated();
+            Q_EMIT stateChanged();
+            return;
+        }
+
+        m_lastTriggeredDevice = QStringLiteral("switch.ac200_ac_output");
+        m_statusText = QStringLiteral("Bluetti AC Inverter: %1").arg(state ? QStringLiteral("ON") : QStringLiteral("OFF"));
+        Q_EMIT stateChanged();
+
+        QProcess::startDetached(
+            QStringLiteral("notify-send"),
+            {QStringLiteral("-a"),
+             QStringLiteral("CatchyPills IoT"),
+             QStringLiteral("Bluetti Inverter"),
+             QStringLiteral("AC Inverter turned %1").arg(state ? QStringLiteral("ON") : QStringLiteral("OFF"))});
+    });
+}
+
+void IoTController::toggleBluettiDc(bool state)
+{
+    const QString haBase = resolveHaBaseUrl();
+    if (haBase.isEmpty()) {
+        m_statusText = QStringLiteral("Set Home Assistant URL in Settings or .env");
+        Q_EMIT stateChanged();
+        return;
+    }
+
+    const QString service = state ? QStringLiteral("turn_on") : QStringLiteral("turn_off");
+    const QUrl url(QStringLiteral("%1/api/services/switch/%2").arg(haBase, service));
+    QNetworkRequest request(url);
+    request.setTransferTimeout(8000);
+    request.setHeader(QNetworkRequest::ContentTypeHeader, QStringLiteral("application/json"));
+    request.setHeader(QNetworkRequest::UserAgentHeader, QStringLiteral("CatchyPills/1.1"));
+
+    if (m_config) {
+        QString token = m_config->envValue(QStringLiteral("IOT_API_KEY")).trimmed();
+        if (token.isEmpty()) {
+            token = m_config->envValue(QStringLiteral("IOT_WEBHOOK_TOKEN")).trimmed();
+        }
+        if (!token.isEmpty()) {
+            request.setRawHeader("Authorization", QStringLiteral("Bearer %1").arg(token).toUtf8());
+        }
+    }
+
+    const QJsonObject payload{{QStringLiteral("entity_id"), QStringLiteral("switch.ac200_dc_output")}};
+    const QByteArray body = QJsonDocument(payload).toJson(QJsonDocument::Compact);
+
+    m_bluettiDcOn = state;
+    Q_EMIT bluettiSwitchesUpdated();
+
+    ++m_pendingRequests;
+    m_statusText = QStringLiteral("Turning Bluetti DC Inverter %1...").arg(state ? QStringLiteral("ON") : QStringLiteral("OFF"));
+    Q_EMIT stateChanged();
+
+    QNetworkReply *reply = m_nam->post(request, body);
+    connect(reply, &QNetworkReply::finished, this, [this, reply, state]() {
+        reply->deleteLater();
+        m_pendingRequests = qMax(0, m_pendingRequests - 1);
+        const int statusCode = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+
+        if (reply->error() != QNetworkReply::NoError
+            || (statusCode != 0 && (statusCode < 200 || statusCode >= 300))) {
+            const QString detail = statusCode > 0
+                ? QStringLiteral("HTTP %1: %2").arg(statusCode).arg(reply->errorString())
+                : reply->errorString();
+            m_statusText = QStringLiteral("Failed Bluetti DC: %1").arg(detail);
+            m_bluettiDcOn = !state;
+            Q_EMIT bluettiSwitchesUpdated();
+            Q_EMIT stateChanged();
+            return;
+        }
+
+        m_lastTriggeredDevice = QStringLiteral("switch.ac200_dc_output");
+        m_statusText = QStringLiteral("Bluetti DC Inverter: %1").arg(state ? QStringLiteral("ON") : QStringLiteral("OFF"));
+        Q_EMIT stateChanged();
+
+        QProcess::startDetached(
+            QStringLiteral("notify-send"),
+            {QStringLiteral("-a"),
+             QStringLiteral("CatchyPills IoT"),
+             QStringLiteral("Bluetti Inverter"),
+             QStringLiteral("DC Inverter turned %1").arg(state ? QStringLiteral("ON") : QStringLiteral("OFF"))});
+    });
+}
+
 } // namespace catchypills::iot

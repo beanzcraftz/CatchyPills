@@ -24,6 +24,8 @@ class IoTController final : public QObject
     Q_PROPERTY(bool configured READ isConfigured NOTIFY stateChanged)
     Q_PROPERTY(QString lastTriggeredDevice READ lastTriggeredDevice NOTIFY stateChanged)
     Q_PROPERTY(QString statusText READ statusText NOTIFY stateChanged)
+    Q_PROPERTY(bool bluettiAcOn READ isBluettiAcOn NOTIFY bluettiSwitchesUpdated)
+    Q_PROPERTY(bool bluettiDcOn READ isBluettiDcOn NOTIFY bluettiSwitchesUpdated)
 
 public:
     explicit IoTController(const app::ConfigManager *config, QObject *parent = nullptr);
@@ -32,15 +34,20 @@ public:
     bool isConfigured() const;
     QString lastTriggeredDevice() const { return m_lastTriggeredDevice; }
     QString statusText() const { return m_statusText; }
+    bool isBluettiAcOn() const noexcept { return m_bluettiAcOn; }
+    bool isBluettiDcOn() const noexcept { return m_bluettiDcOn; }
 
     Q_INVOKABLE void triggerDevice(const QString &deviceId);
     Q_INVOKABLE void setClimateMode(const QString &entityId, const QString &mode);
     Q_INVOKABLE void setClimateTemperature(const QString &entityId, double temperature);
     Q_INVOKABLE void setClimateFanMode(const QString &entityId, const QString &fanMode);
+    Q_INVOKABLE void toggleBluettiAc(bool state);
+    Q_INVOKABLE void toggleBluettiDc(bool state);
     Q_INVOKABLE void reloadConfig();
 
 Q_SIGNALS:
     void stateChanged();
+    void bluettiSwitchesUpdated();
 
 private:
     QString resolveHaBaseUrl() const;
@@ -53,6 +60,8 @@ private:
     int m_pendingRequests{0};
     QString m_lastTriggeredDevice;
     QString m_statusText;
+    bool m_bluettiAcOn{false};
+    bool m_bluettiDcOn{false};
 };
 
 } // namespace catchypills::iot

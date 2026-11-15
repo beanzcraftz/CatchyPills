@@ -108,6 +108,10 @@ void SolarController::reloadConfig()
         m_dailyConsumptionText.clear();
         m_netText = QStringLiteral("0.0 kW");
         m_lastUpdatedText.clear();
+        m_bluettiInputPowerText = QStringLiteral("In: 0W");
+        m_bluettiOutputPowerText = QStringLiteral("Out: 0W");
+        m_bluettiInputWatts = 0.0;
+        m_bluettiOutputWatts = 0.0;
         Q_EMIT telemetryUpdated();
         return;
     }
@@ -377,7 +381,7 @@ void SolarController::fetchBatteryTelemetry()
         haBase = QStringLiteral("http://192.168.1.244:8123");
     }
 
-    const QUrl url(QStringLiteral("%1/api/states/sensor.ac200_battery_level").arg(haBase));
+    const QUrl url(QStringLiteral("%1/api/template").arg(haBase));
     if (!url.isValid()) {
         return;
     }
@@ -385,13 +389,24 @@ void SolarController::fetchBatteryTelemetry()
     QNetworkRequest request(url);
     request.setTransferTimeout(8000);
     request.setHeader(QNetworkRequest::UserAgentHeader, QStringLiteral("CatchyPills/1.1"));
+    request.setHeader(QNetworkRequest::ContentTypeHeader, QStringLiteral("application/json"));
 
     const QString apiKey = resolveApiKey();
     if (!apiKey.isEmpty()) {
         request.setRawHeader("Authorization", QStringLiteral("Bearer %1").arg(apiKey).toUtf8());
     }
 
-    QNetworkReply *reply = m_nam->get(request);
+    const QString tmpl = QStringLiteral(
+        "{\"battery\": {{ states('sensor.ac200_battery_level') | float(100) }}, "
+        "\"input_power\": {{ states('sensor.ac200_total_input_power') | float(0) }}, "
+        "\"output_power\": {{ states('sensor.ac200_total_output_power') | float(0) }}}"
+    );
+
+    QJsonObject bodyObj;
+    bodyObj.insert(QStringLiteral("template"), tmpl);
+    const QByteArray bodyData = QJsonDocument(bodyObj).toJson(QJsonDocument::Compact);
+
+    QNetworkReply *reply = m_nam->post(request, bodyData);
     m_batteryReply = reply;
     connect(reply, &QNetworkReply::finished, this, [this, reply]() {
         onBatteryReplyFinished(reply);
@@ -407,6 +422,7 @@ void SolarController::onBatteryReplyFinished(QNetworkReply *reply)
     m_batteryReply = nullptr;
 
     if (reply->error() != QNetworkReply::NoError) {
+        qWarning("SolarController: Bluetti telemetry fetch failed: %s", qPrintable(reply->errorString()));
         return;
     }
 
@@ -417,15 +433,28 @@ void SolarController::onBatteryReplyFinished(QNetworkReply *reply)
     }
 
     const QJsonObject obj = doc.object();
-    const QString stateStr = obj.value(QStringLiteral("state")).toString().trimmed();
-    bool ok = false;
-    const double val = stateStr.toDouble(&ok);
-    if (!ok) {
-        return;
+    if (obj.contains(QStringLiteral("battery"))) {
+        m_batteryPercentage = static_cast<int>(std::round(parseJsonDouble(obj.value(QStringLiteral("battery")), 100.0)));
+        m_hasBattery = true;
+    } else if (obj.contains(QStringLiteral("state"))) {
+        const QString stateStr = obj.value(QStringLiteral("state")).toString().trimmed();
+        bool ok = false;
+        const double val = stateStr.toDouble(&ok);
+        if (ok) {
+            m_batteryPercentage = static_cast<int>(std::round(val));
+            m_hasBattery = true;
+        }
     }
 
-    m_batteryPercentage = static_cast<int>(std::round(val));
-    m_hasBattery = true;
+    if (obj.contains(QStringLiteral("input_power"))) {
+        m_bluettiInputWatts = parseJsonDouble(obj.value(QStringLiteral("input_power")), 0.0);
+        m_bluettiInputPowerText = QStringLiteral("In: %1W").arg(static_cast<int>(std::round(m_bluettiInputWatts)));
+    }
+
+    if (obj.contains(QStringLiteral("output_power"))) {
+        m_bluettiOutputWatts = parseJsonDouble(obj.value(QStringLiteral("output_power")), 0.0);
+        m_bluettiOutputPowerText = QStringLiteral("Out: %1W").arg(static_cast<int>(std::round(m_bluettiOutputWatts)));
+    }
 
     if (m_batteryPercentage <= 10 && !m_hasNotifiedLowBattery) {
         m_hasNotifiedLowBattery = true;

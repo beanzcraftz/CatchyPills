@@ -12,6 +12,7 @@ Item {
 
     readonly property var devices: [
         { deviceId: "office_ac", label: "Gree AC", subtitle: "Office Climate", icon: "❄️", accent: "#38bdf8" },
+        { deviceId: "bluetti_ac200", label: "Bluetti AC200", subtitle: "Power Station", icon: "🔋", accent: "#00e5a3" },
         { deviceId: "office_fan", label: "Arlec Fan", subtitle: "Airflow", icon: "🌀", accent: "#2dd4bf" },
         { deviceId: "office_outlet", label: "Power Outlet", subtitle: "Grid Socket", icon: "🔌", accent: "#f59e0b" },
         { deviceId: "office_lamp", label: "Desk Lamp", subtitle: "Olamp", icon: "💡", accent: "#00e5a3" }
@@ -86,327 +87,525 @@ Item {
             }
         }
 
-        // 2x2 Glassmorphism Office IoT Toggle Grid
-        GridLayout {
+        // Glassmorphism Office IoT & Bluetti Toggle Grid
+        ScrollView {
             Layout.fillWidth: true
             Layout.fillHeight: true
-            columns: 2
-            columnSpacing: 8
-            rowSpacing: 8
+            clip: true
+            contentWidth: availableWidth
+            ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+            ScrollBar.vertical.policy: ScrollBar.AsNeeded
 
-            Repeater {
-                model: root.devices
+            GridLayout {
+                width: parent.width
+                columns: 2
+                columnSpacing: 8
+                rowSpacing: 8
 
-                delegate: Rectangle {
-                    id: iotTile
-                    required property var modelData
-                    readonly property bool isClimateTile: iotTile.modelData.deviceId === "office_ac"
-                    property int currentTemp: 22
-                    property string currentMode: "cool"
-                    property string currentFanMode: "auto"
-                    readonly property bool isLastTriggered:
-                        iotController.lastTriggeredDevice === iotTile.modelData.deviceId
-                        || (iotTile.isClimateTile && (iotController.lastTriggeredDevice.indexOf("ac") !== -1 || iotController.lastTriggeredDevice.indexOf("climate") !== -1))
+                Repeater {
+                    model: root.devices
 
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-                    radius: 14
-                    color: (!iotTile.isClimateTile && tileMouse.pressed)
-                           ? Qt.rgba(0.0, 0.90, 0.64, 0.18)
-                           : (tileHover.hovered
-                              ? Qt.rgba(0.20, 0.21, 0.31, 0.85)
-                              : Qt.rgba(0.14, 0.14, 0.22, 0.72))
-                    border.width: 1
-                    border.color: tileHover.hovered
-                                  ? "#00e5a3"
-                                  : (isLastTriggered ? Qt.rgba(0.0, 0.90, 0.64, 0.45) : Qt.rgba(1, 1, 1, 0.10))
+                    delegate: Rectangle {
+                        id: iotTile
+                        required property var modelData
+                        readonly property bool isClimateTile: iotTile.modelData.deviceId === "office_ac"
+                        readonly property bool isBluettiTile: iotTile.modelData.deviceId === "bluetti_ac200"
+                        readonly property bool isCustomTile: iotTile.isClimateTile || iotTile.isBluettiTile
+                        property int currentTemp: 22
+                        property string currentMode: "cool"
+                        property string currentFanMode: "auto"
+                        readonly property bool isLastTriggered:
+                            iotController.lastTriggeredDevice === iotTile.modelData.deviceId
+                            || (iotTile.isClimateTile && (iotController.lastTriggeredDevice.indexOf("ac") !== -1 || iotController.lastTriggeredDevice.indexOf("climate") !== -1))
+                            || (iotTile.isBluettiTile && (iotController.lastTriggeredDevice.indexOf("bluetti") !== -1 || iotController.lastTriggeredDevice.indexOf("ac200") !== -1))
 
-                    HoverHandler { id: tileHover }
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: iotTile.isCustomTile ? 136 : 64
+                        radius: 14
+                        color: (!iotTile.isCustomTile && tileMouse.pressed)
+                               ? Qt.rgba(0.0, 0.90, 0.64, 0.18)
+                               : (tileHover.hovered
+                                  ? Qt.rgba(0.20, 0.21, 0.31, 0.85)
+                                  : Qt.rgba(0.14, 0.14, 0.22, 0.72))
+                        border.width: 1
+                        border.color: tileHover.hovered
+                                      ? "#00e5a3"
+                                      : (isLastTriggered ? Qt.rgba(0.0, 0.90, 0.64, 0.45) : Qt.rgba(1, 1, 1, 0.10))
 
-                    ColumnLayout {
-                        anchors.fill: parent
-                        anchors.margins: 10
-                        spacing: iotTile.isClimateTile ? 6 : 4
+                        HoverHandler { id: tileHover }
 
-                        // Header Row
-                        RowLayout {
-                            Layout.fillWidth: true
-
-                            Label {
-                                font.pixelSize: 18
-                                text: iotTile.modelData.icon
-                            }
-
-                            ColumnLayout {
-                                spacing: 1
-                                Label {
-                                    Layout.fillWidth: true
-                                    elide: Text.ElideRight
-                                    color: tileHover.hovered ? "#00e5a3" : "#f8fafc"
-                                    font.pixelSize: 13
-                                    font.weight: Font.DemiBold
-                                    text: iotTile.modelData.label
-                                }
-
-                                Label {
-                                    Layout.fillWidth: true
-                                    elide: Text.ElideRight
-                                    color: "#94a3b8"
-                                    font.pixelSize: 10
-                                    text: iotTile.modelData.subtitle
-                                }
-                            }
-
-                            Item { Layout.fillWidth: true }
-
-                            // Action / Toggle Badge (only on non-climate tiles)
-                            Rectangle {
-                                visible: !iotTile.isClimateTile
-                                Layout.preferredWidth: actionBadgeLbl.implicitWidth + 12
-                                Layout.preferredHeight: 18
-                                radius: 6
-                                color: iotTile.isLastTriggered
-                                       ? Qt.rgba(0.0, 0.90, 0.64, 0.18)
-                                       : Qt.rgba(1, 1, 1, 0.06)
-                                border.width: 1
-                                border.color: iotTile.isLastTriggered
-                                              ? Qt.rgba(0.0, 0.90, 0.64, 0.45)
-                                              : Qt.rgba(1, 1, 1, 0.10)
-
-                                Label {
-                                    id: actionBadgeLbl
-                                    anchors.centerIn: parent
-                                    color: iotTile.isLastTriggered ? "#00e5a3" : "#94a3b8"
-                                    font.pixelSize: 9
-                                    font.weight: Font.DemiBold
-                                    text: iotTile.isLastTriggered ? "Sent" : "Toggle"
-                                }
-                            }
-                        }
-
-                        // Climate Advanced Controls (Mode Row & Temp Stepper)
                         ColumnLayout {
-                            visible: iotTile.isClimateTile
-                            Layout.fillWidth: true
-                            spacing: 6
+                            anchors.fill: parent
+                            anchors.margins: 10
+                            spacing: iotTile.isCustomTile ? 6 : 4
 
-                            // Mode Icon Row: ❄️ (cool), ☀️ (heat), 💧 (dry), ⏻ (off)
+                            // Header Row
                             RowLayout {
                                 Layout.fillWidth: true
-                                spacing: 4
 
-                                Repeater {
-                                    model: [
-                                        { mode: "cool", icon: "❄️", tip: "Cool Mode" },
-                                        { mode: "heat", icon: "☀️", tip: "Heat Mode" },
-                                        { mode: "dry", icon: "💧", tip: "Dry Mode" },
-                                        { mode: "off", icon: "⏻", tip: "Turn Off" }
-                                    ]
+                                Label {
+                                    font.pixelSize: 18
+                                    text: iotTile.modelData.icon
+                                }
 
-                                    delegate: Rectangle {
-                                        id: modeBtn
-                                        required property var modelData
-                                        readonly property bool isActive: iotTile.currentMode === modeBtn.modelData.mode
+                                ColumnLayout {
+                                    spacing: 1
+                                    Label {
                                         Layout.fillWidth: true
-                                        Layout.preferredHeight: 24
-                                        radius: 6
-                                        color: modeBtnMouse.pressed
-                                               ? Qt.rgba(0.0, 0.90, 0.64, 0.35)
-                                               : (modeBtn.isActive
-                                                  ? Qt.rgba(0.0, 0.90, 0.64, 0.22)
-                                                  : (modeBtnHover.hovered ? Qt.rgba(1, 1, 1, 0.14) : Qt.rgba(1, 1, 1, 0.06)))
-                                        border.width: 1
-                                        border.color: modeBtn.isActive
-                                                      ? "#00e5a3"
-                                                      : (modeBtnHover.hovered ? Qt.rgba(1, 1, 1, 0.25) : Qt.rgba(1, 1, 1, 0.10))
+                                        elide: Text.ElideRight
+                                        color: tileHover.hovered ? "#00e5a3" : "#f8fafc"
+                                        font.pixelSize: 13
+                                        font.weight: Font.DemiBold
+                                        text: iotTile.modelData.label
+                                    }
 
-                                        HoverHandler { id: modeBtnHover }
+                                    Label {
+                                        Layout.fillWidth: true
+                                        elide: Text.ElideRight
+                                        color: "#94a3b8"
+                                        font.pixelSize: 10
+                                        text: iotTile.isBluettiTile && solarController.hasBattery
+                                              ? (solarController.batteryPercentage + "% Battery")
+                                              : iotTile.modelData.subtitle
+                                    }
+                                }
 
-                                        ToolTip.visible: modeBtnHover.hovered
-                                        ToolTip.delay: 300
-                                        ToolTip.text: modeBtn.modelData.tip
+                                Item { Layout.fillWidth: true }
 
-                                        Label {
-                                            anchors.centerIn: parent
-                                            font.pixelSize: 11
-                                            text: modeBtn.modelData.icon
-                                        }
+                                // Action / Toggle Badge (only on non-custom tiles)
+                                Rectangle {
+                                    visible: !iotTile.isCustomTile
+                                    Layout.preferredWidth: actionBadgeLbl.implicitWidth + 12
+                                    Layout.preferredHeight: 18
+                                    radius: 6
+                                    color: iotTile.isLastTriggered
+                                           ? Qt.rgba(0.0, 0.90, 0.64, 0.18)
+                                           : Qt.rgba(1, 1, 1, 0.06)
+                                    border.width: 1
+                                    border.color: iotTile.isLastTriggered
+                                                  ? Qt.rgba(0.0, 0.90, 0.64, 0.45)
+                                                  : Qt.rgba(1, 1, 1, 0.10)
 
-                                        MouseArea {
-                                            id: modeBtnMouse
-                                            anchors.fill: parent
-                                            cursorShape: Qt.PointingHandCursor
-                                            onClicked: {
-                                                iotTile.currentMode = modeBtn.modelData.mode
-                                                iotController.setClimateMode("climate.gree_ac", modeBtn.modelData.mode)
-                                            }
-                                        }
+                                    Label {
+                                        id: actionBadgeLbl
+                                        anchors.centerIn: parent
+                                        color: iotTile.isLastTriggered ? "#00e5a3" : "#94a3b8"
+                                        font.pixelSize: 9
+                                        font.weight: Font.DemiBold
+                                        text: iotTile.isLastTriggered ? "Sent" : "Toggle"
+                                    }
+                                }
+
+                                // Battery badge for Bluetti AC200 tile
+                                Rectangle {
+                                    visible: iotTile.isBluettiTile && solarController.hasBattery
+                                    Layout.preferredWidth: battBadgeLbl.implicitWidth + 12
+                                    Layout.preferredHeight: 18
+                                    radius: 6
+                                    color: solarController.batteryPercentage <= 15
+                                           ? Qt.rgba(0.94, 0.27, 0.27, 0.22)
+                                           : Qt.rgba(0.0, 0.90, 0.64, 0.18)
+                                    border.width: 1
+                                    border.color: solarController.batteryPercentage <= 15
+                                                  ? "#ef4444"
+                                                  : Qt.rgba(0.0, 0.90, 0.64, 0.45)
+
+                                    Label {
+                                        id: battBadgeLbl
+                                        anchors.centerIn: parent
+                                        color: solarController.batteryPercentage <= 15 ? "#ef4444" : "#00e5a3"
+                                        font.pixelSize: 9
+                                        font.weight: Font.DemiBold
+                                        text: solarController.batteryPercentage + "%"
                                     }
                                 }
                             }
 
-                            // Precise Temperature Control Stepper: [ - ] 22°C [ + ]
-                            RowLayout {
+                            // Climate Advanced Controls (Mode Row, Temp Stepper, Fan Speed)
+                            ColumnLayout {
+                                visible: iotTile.isClimateTile
                                 Layout.fillWidth: true
                                 spacing: 6
 
-                                Rectangle {
-                                    id: minusBtn
-                                    Layout.preferredWidth: 28
-                                    Layout.preferredHeight: 24
-                                    radius: 6
-                                    color: minusMouse.pressed
-                                           ? Qt.rgba(0.0, 0.90, 0.64, 0.30)
-                                           : (minusHover.hovered ? Qt.rgba(1, 1, 1, 0.14) : Qt.rgba(1, 1, 1, 0.06))
-                                    border.width: 1
-                                    border.color: minusHover.hovered ? "#00e5a3" : Qt.rgba(1, 1, 1, 0.10)
-
-                                    HoverHandler { id: minusHover }
-
-                                    Label {
-                                        anchors.centerIn: parent
-                                        color: "#f8fafc"
-                                        font.pixelSize: 13
-                                        font.weight: Font.Bold
-                                        text: "-"
-                                    }
-
-                                    MouseArea {
-                                        id: minusMouse
-                                        anchors.fill: parent
-                                        cursorShape: Qt.PointingHandCursor
-                                        onClicked: {
-                                            if (iotTile.currentTemp > 16) {
-                                                iotTile.currentTemp -= 1
-                                                iotController.setClimateTemperature("climate.gree_ac", iotTile.currentTemp)
-                                            }
-                                        }
-                                    }
-                                }
-
-                                Rectangle {
+                                // Mode Icon Row: ❄️ (cool), ☀️ (heat), 💧 (dry), ⏻ (off)
+                                RowLayout {
                                     Layout.fillWidth: true
-                                    Layout.preferredHeight: 24
-                                    radius: 6
-                                    color: Qt.rgba(0, 0, 0, 0.25)
-                                    border.width: 1
-                                    border.color: Qt.rgba(1, 1, 1, 0.08)
+                                    spacing: 4
 
-                                    Label {
-                                        anchors.centerIn: parent
-                                        color: "#00e5a3"
-                                        font.pixelSize: 12
-                                        font.weight: Font.Bold
-                                        text: iotTile.currentTemp + "°C"
-                                    }
-                                }
+                                    Repeater {
+                                        model: [
+                                            { mode: "cool", icon: "❄️", tip: "Cool Mode" },
+                                            { mode: "heat", icon: "☀️", tip: "Heat Mode" },
+                                            { mode: "dry", icon: "💧", tip: "Dry Mode" },
+                                            { mode: "off", icon: "⏻", tip: "Turn Off" }
+                                        ]
 
-                                Rectangle {
-                                    id: plusBtn
-                                    Layout.preferredWidth: 28
-                                    Layout.preferredHeight: 24
-                                    radius: 6
-                                    color: plusMouse.pressed
-                                           ? Qt.rgba(0.0, 0.90, 0.64, 0.30)
-                                           : (plusHover.hovered ? Qt.rgba(1, 1, 1, 0.14) : Qt.rgba(1, 1, 1, 0.06))
-                                    border.width: 1
-                                    border.color: plusHover.hovered ? "#00e5a3" : Qt.rgba(1, 1, 1, 0.10)
+                                        delegate: Rectangle {
+                                            id: modeBtn
+                                            required property var modelData
+                                            readonly property bool isActive: iotTile.currentMode === modeBtn.modelData.mode
+                                            Layout.fillWidth: true
+                                            Layout.preferredHeight: 24
+                                            radius: 6
+                                            color: modeBtnMouse.pressed
+                                                   ? Qt.rgba(0.0, 0.90, 0.64, 0.35)
+                                                   : (modeBtn.isActive
+                                                      ? Qt.rgba(0.0, 0.90, 0.64, 0.22)
+                                                      : (modeBtnHover.hovered ? Qt.rgba(1, 1, 1, 0.14) : Qt.rgba(1, 1, 1, 0.06)))
+                                            border.width: 1
+                                            border.color: modeBtn.isActive
+                                                          ? "#00e5a3"
+                                                          : (modeBtnHover.hovered ? Qt.rgba(1, 1, 1, 0.25) : Qt.rgba(1, 1, 1, 0.10))
 
-                                    HoverHandler { id: plusHover }
+                                            HoverHandler { id: modeBtnHover }
 
-                                    Label {
-                                        anchors.centerIn: parent
-                                        color: "#f8fafc"
-                                        font.pixelSize: 13
-                                        font.weight: Font.Bold
-                                        text: "+"
-                                    }
+                                            ToolTip.visible: modeBtnHover.hovered
+                                            ToolTip.delay: 300
+                                            ToolTip.text: modeBtn.modelData.tip
 
-                                    MouseArea {
-                                        id: plusMouse
-                                        anchors.fill: parent
-                                        cursorShape: Qt.PointingHandCursor
-                                        onClicked: {
-                                            if (iotTile.currentTemp < 30) {
-                                                iotTile.currentTemp += 1
-                                                iotController.setClimateTemperature("climate.gree_ac", iotTile.currentTemp)
+                                            Label {
+                                                anchors.centerIn: parent
+                                                font.pixelSize: 11
+                                                text: modeBtn.modelData.icon
+                                            }
+
+                                            MouseArea {
+                                                id: modeBtnMouse
+                                                anchors.fill: parent
+                                                cursorShape: Qt.PointingHandCursor
+                                                onClicked: {
+                                                    iotTile.currentMode = modeBtn.modelData.mode
+                                                    iotController.setClimateMode("climate.gree_ac", modeBtn.modelData.mode)
+                                                }
                                             }
                                         }
                                     }
                                 }
-                            }
 
-                            // Fan Speed Control Row: Auto, Low, Med, High
-                            RowLayout {
-                                Layout.fillWidth: true
-                                spacing: 4
+                                // Precise Temperature Control Stepper: [ - ] 22°C [ + ]
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 6
 
-                                Repeater {
-                                    model: [
-                                        { mode: "auto", label: "Auto", tip: "Auto Fan Speed" },
-                                        { mode: "low", label: "Low", tip: "Low Fan Speed" },
-                                        { mode: "medium", label: "Med", tip: "Medium Fan Speed" },
-                                        { mode: "high", label: "High", tip: "High Fan Speed" }
-                                    ]
-
-                                    delegate: Rectangle {
-                                        id: fanBtn
-                                        required property var modelData
-                                        readonly property bool isActive: iotTile.currentFanMode === fanBtn.modelData.mode
-                                        Layout.fillWidth: true
-                                        Layout.preferredHeight: 22
+                                    Rectangle {
+                                        id: minusBtn
+                                        Layout.preferredWidth: 28
+                                        Layout.preferredHeight: 24
                                         radius: 6
-                                        color: fanBtnMouse.pressed
-                                               ? Qt.rgba(0.0, 0.90, 0.64, 0.35)
-                                               : (fanBtn.isActive
-                                                  ? Qt.rgba(0.0, 0.90, 0.64, 0.22)
-                                                  : (fanBtnHover.hovered ? Qt.rgba(1, 1, 1, 0.14) : Qt.rgba(1, 1, 1, 0.06)))
+                                        color: minusMouse.pressed
+                                               ? Qt.rgba(0.0, 0.90, 0.64, 0.30)
+                                               : (minusHover.hovered ? Qt.rgba(1, 1, 1, 0.14) : Qt.rgba(1, 1, 1, 0.06))
                                         border.width: 1
-                                        border.color: fanBtn.isActive
-                                                      ? "#00e5a3"
-                                                      : (fanBtnHover.hovered ? Qt.rgba(1, 1, 1, 0.25) : Qt.rgba(1, 1, 1, 0.10))
+                                        border.color: minusHover.hovered ? "#00e5a3" : Qt.rgba(1, 1, 1, 0.10)
 
-                                        HoverHandler { id: fanBtnHover }
-
-                                        ToolTip.visible: fanBtnHover.hovered
-                                        ToolTip.delay: 300
-                                        ToolTip.text: fanBtn.modelData.tip
+                                        HoverHandler { id: minusHover }
 
                                         Label {
                                             anchors.centerIn: parent
-                                            font.pixelSize: 10
-                                            font.weight: fanBtn.isActive ? Font.DemiBold : Font.Normal
-                                            color: fanBtn.isActive ? "#00e5a3" : "#f8fafc"
-                                            text: fanBtn.modelData.label
+                                            color: "#f8fafc"
+                                            font.pixelSize: 13
+                                            font.weight: Font.Bold
+                                            text: "-"
                                         }
 
                                         MouseArea {
-                                            id: fanBtnMouse
+                                            id: minusMouse
                                             anchors.fill: parent
                                             cursorShape: Qt.PointingHandCursor
                                             onClicked: {
-                                                iotTile.currentFanMode = fanBtn.modelData.mode
-                                                iotController.setClimateFanMode("climate.gree_ac", fanBtn.modelData.mode)
+                                                if (iotTile.currentTemp > 16) {
+                                                    iotTile.currentTemp -= 1
+                                                    iotController.setClimateTemperature("climate.gree_ac", iotTile.currentTemp)
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    Rectangle {
+                                        Layout.fillWidth: true
+                                        Layout.preferredHeight: 24
+                                        radius: 6
+                                        color: Qt.rgba(0, 0, 0, 0.25)
+                                        border.width: 1
+                                        border.color: Qt.rgba(1, 1, 1, 0.08)
+
+                                        Label {
+                                            anchors.centerIn: parent
+                                            color: "#00e5a3"
+                                            font.pixelSize: 12
+                                            font.weight: Font.Bold
+                                            text: iotTile.currentTemp + "°C"
+                                        }
+                                    }
+
+                                    Rectangle {
+                                        id: plusBtn
+                                        Layout.preferredWidth: 28
+                                        Layout.preferredHeight: 24
+                                        radius: 6
+                                        color: plusMouse.pressed
+                                               ? Qt.rgba(0.0, 0.90, 0.64, 0.30)
+                                               : (plusHover.hovered ? Qt.rgba(1, 1, 1, 0.14) : Qt.rgba(1, 1, 1, 0.06))
+                                        border.width: 1
+                                        border.color: plusHover.hovered ? "#00e5a3" : Qt.rgba(1, 1, 1, 0.10)
+
+                                        HoverHandler { id: plusHover }
+
+                                        Label {
+                                            anchors.centerIn: parent
+                                            color: "#f8fafc"
+                                            font.pixelSize: 13
+                                            font.weight: Font.Bold
+                                            text: "+"
+                                        }
+
+                                        MouseArea {
+                                            id: plusMouse
+                                            anchors.fill: parent
+                                            cursorShape: Qt.PointingHandCursor
+                                            onClicked: {
+                                                if (iotTile.currentTemp < 30) {
+                                                    iotTile.currentTemp += 1
+                                                    iotController.setClimateTemperature("climate.gree_ac", iotTile.currentTemp)
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+
+                                // Fan Speed Control Row: Auto, Low, Med, High
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 4
+
+                                    Repeater {
+                                        model: [
+                                            { mode: "auto", label: "Auto", tip: "Auto Fan Speed" },
+                                            { mode: "low", label: "Low", tip: "Low Fan Speed" },
+                                            { mode: "medium", label: "Med", tip: "Medium Fan Speed" },
+                                            { mode: "high", label: "High", tip: "High Fan Speed" }
+                                        ]
+
+                                        delegate: Rectangle {
+                                            id: fanBtn
+                                            required property var modelData
+                                            readonly property bool isActive: iotTile.currentFanMode === fanBtn.modelData.mode
+                                            Layout.fillWidth: true
+                                            Layout.preferredHeight: 22
+                                            radius: 6
+                                            color: fanBtnMouse.pressed
+                                                   ? Qt.rgba(0.0, 0.90, 0.64, 0.35)
+                                                   : (fanBtn.isActive
+                                                      ? Qt.rgba(0.0, 0.90, 0.64, 0.22)
+                                                      : (fanBtnHover.hovered ? Qt.rgba(1, 1, 1, 0.14) : Qt.rgba(1, 1, 1, 0.06)))
+                                            border.width: 1
+                                            border.color: fanBtn.isActive
+                                                          ? "#00e5a3"
+                                                          : (fanBtnHover.hovered ? Qt.rgba(1, 1, 1, 0.25) : Qt.rgba(1, 1, 1, 0.10))
+
+                                            HoverHandler { id: fanBtnHover }
+
+                                            ToolTip.visible: fanBtnHover.hovered
+                                            ToolTip.delay: 300
+                                            ToolTip.text: fanBtn.modelData.tip
+
+                                            Label {
+                                                anchors.centerIn: parent
+                                                font.pixelSize: 10
+                                                font.weight: fanBtn.isActive ? Font.DemiBold : Font.Normal
+                                                color: fanBtn.isActive ? "#00e5a3" : "#f8fafc"
+                                                text: fanBtn.modelData.label
+                                            }
+
+                                            MouseArea {
+                                                id: fanBtnMouse
+                                                anchors.fill: parent
+                                                cursorShape: Qt.PointingHandCursor
+                                                onClicked: {
+                                                    iotTile.currentFanMode = fanBtn.modelData.mode
+                                                    iotController.setClimateFanMode("climate.gree_ac", fanBtn.modelData.mode)
+                                                }
                                             }
                                         }
                                     }
                                 }
                             }
+
+                            // Bluetti AC200 Controls (Telemetry Readout + Inverter Toggles)
+                            ColumnLayout {
+                                visible: iotTile.isBluettiTile
+                                Layout.fillWidth: true
+                                spacing: 6
+
+                                // Top half: Display real-time Input Power and Output Power side-by-side
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 6
+
+                                    Rectangle {
+                                        Layout.fillWidth: true
+                                        Layout.preferredHeight: 26
+                                        radius: 6
+                                        color: Qt.rgba(0, 0, 0, 0.25)
+                                        border.width: 1
+                                        border.color: Qt.rgba(1, 1, 1, 0.08)
+
+                                        RowLayout {
+                                            anchors.centerIn: parent
+                                            spacing: 5
+
+                                            Label {
+                                                font.pixelSize: 10
+                                                text: "⚡"
+                                            }
+
+                                            Label {
+                                                color: "#38bdf8"
+                                                font.pixelSize: 11
+                                                font.weight: Font.DemiBold
+                                                text: solarController.bluettiInputPowerText
+                                            }
+                                        }
+                                    }
+
+                                    Rectangle {
+                                        Layout.fillWidth: true
+                                        Layout.preferredHeight: 26
+                                        radius: 6
+                                        color: Qt.rgba(0, 0, 0, 0.25)
+                                        border.width: 1
+                                        border.color: Qt.rgba(1, 1, 1, 0.08)
+
+                                        RowLayout {
+                                            anchors.centerIn: parent
+                                            spacing: 5
+
+                                            Label {
+                                                font.pixelSize: 10
+                                                text: "🔌"
+                                            }
+
+                                            Label {
+                                                color: "#f59e0b"
+                                                font.pixelSize: 11
+                                                font.weight: Font.DemiBold
+                                                text: solarController.bluettiOutputPowerText
+                                            }
+                                        }
+                                    }
+                                }
+
+                                // Bottom half: Create two toggle buttons side-by-side labelled "AC Inverter" and "DC Inverter"
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 6
+
+                                    // AC Inverter Button
+                                    Rectangle {
+                                        id: acInverterBtn
+                                        Layout.fillWidth: true
+                                        Layout.preferredHeight: 24
+                                        radius: 6
+                                        color: acMouse.pressed
+                                               ? Qt.rgba(0.0, 0.90, 0.64, 0.35)
+                                               : (iotController.bluettiAcOn
+                                                  ? Qt.rgba(0.0, 0.90, 0.64, 0.22)
+                                                  : (acHover.hovered ? Qt.rgba(1, 1, 1, 0.14) : Qt.rgba(1, 1, 1, 0.06)))
+                                        border.width: 1
+                                        border.color: iotController.bluettiAcOn
+                                                      ? "#00e5a3"
+                                                      : (acHover.hovered ? Qt.rgba(1, 1, 1, 0.25) : Qt.rgba(1, 1, 1, 0.10))
+
+                                        HoverHandler { id: acHover }
+
+                                        RowLayout {
+                                            anchors.centerIn: parent
+                                            spacing: 5
+
+                                            Rectangle {
+                                                Layout.preferredWidth: 6
+                                                Layout.preferredHeight: 6
+                                                radius: 3
+                                                color: iotController.bluettiAcOn ? "#00e5a3" : "#64748b"
+                                            }
+
+                                            Label {
+                                                text: "AC Inverter"
+                                                font.pixelSize: 10
+                                                font.weight: iotController.bluettiAcOn ? Font.DemiBold : Font.Normal
+                                                color: iotController.bluettiAcOn ? "#00e5a3" : "#f8fafc"
+                                            }
+                                        }
+
+                                        MouseArea {
+                                            id: acMouse
+                                            anchors.fill: parent
+                                            cursorShape: Qt.PointingHandCursor
+                                            onClicked: iotController.toggleBluettiAc(!iotController.bluettiAcOn)
+                                        }
+                                    }
+
+                                    // DC Inverter Button
+                                    Rectangle {
+                                        id: dcInverterBtn
+                                        Layout.fillWidth: true
+                                        Layout.preferredHeight: 24
+                                        radius: 6
+                                        color: dcMouse.pressed
+                                               ? Qt.rgba(0.0, 0.90, 0.64, 0.35)
+                                               : (iotController.bluettiDcOn
+                                                  ? Qt.rgba(0.0, 0.90, 0.64, 0.22)
+                                                  : (dcHover.hovered ? Qt.rgba(1, 1, 1, 0.14) : Qt.rgba(1, 1, 1, 0.06)))
+                                        border.width: 1
+                                        border.color: iotController.bluettiDcOn
+                                                      ? "#00e5a3"
+                                                      : (dcHover.hovered ? Qt.rgba(1, 1, 1, 0.25) : Qt.rgba(1, 1, 1, 0.10))
+
+                                        HoverHandler { id: dcHover }
+
+                                        RowLayout {
+                                            anchors.centerIn: parent
+                                            spacing: 5
+
+                                            Rectangle {
+                                                Layout.preferredWidth: 6
+                                                Layout.preferredHeight: 6
+                                                radius: 3
+                                                color: iotController.bluettiDcOn ? "#00e5a3" : "#64748b"
+                                            }
+
+                                            Label {
+                                                text: "DC Inverter"
+                                                font.pixelSize: 10
+                                                font.weight: iotController.bluettiDcOn ? Font.DemiBold : Font.Normal
+                                                color: iotController.bluettiDcOn ? "#00e5a3" : "#f8fafc"
+                                            }
+                                        }
+
+                                        MouseArea {
+                                            id: dcMouse
+                                            anchors.fill: parent
+                                            cursorShape: Qt.PointingHandCursor
+                                            onClicked: iotController.toggleBluettiDc(!iotController.bluettiDcOn)
+                                        }
+                                    }
+                                }
+                            }
+
+                            Item {
+                                visible: !iotTile.isCustomTile
+                                Layout.fillHeight: true
+                            }
                         }
 
-                        Item {
-                            visible: !iotTile.isClimateTile
-                            Layout.fillHeight: true
+                        // MouseArea covering the tile for standard 1-click toggle devices
+                        MouseArea {
+                            id: tileMouse
+                            anchors.fill: parent
+                            enabled: !iotTile.isCustomTile
+                            cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
+                            onClicked: iotController.triggerDevice(iotTile.modelData.deviceId)
                         }
-                    }
-
-                    // MouseArea covering the tile for standard 1-click toggle devices
-                    MouseArea {
-                        id: tileMouse
-                        anchors.fill: parent
-                        enabled: !iotTile.isClimateTile
-                        cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
-                        onClicked: iotController.triggerDevice(iotTile.modelData.deviceId)
                     }
                 }
             }
