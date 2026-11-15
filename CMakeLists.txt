@@ -78,6 +78,7 @@ qt_add_qml_module(catchypills
         src/ui/components/CollapsedPill.qml
         src/ui/components/ExpandedDashboard.qml
         src/ui/components/ClipboardView.qml
+        src/ui/components/CameraTab.qml
         src/ui/components/IoTView.qml
         src/ui/components/ITSMView.qml
         src/ui/components/MediaView.qml

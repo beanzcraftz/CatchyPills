@@ -264,7 +264,8 @@ void SolarController::refresh()
             "{\"current_generation_kw\": {{ (states('%1') | float(0) / (1000 if state_attr('%1', 'unit_of_measurement') == 'W' else 1)) | round(2) }}, "
             "\"household_consumption_kw\": {{ (states('%2') | float(0) / (1000 if state_attr('%2', 'unit_of_measurement') == 'W' else 1)) | round(2) }}, "
             "\"daily_generation_kwh\": {{ (states('%3') | float(0) / (1000 if state_attr('%3', 'unit_of_measurement') == 'Wh' else 1)) | round(1) }}, "
-            "\"daily_consumption_kwh\": {{ (states('%4') | float(0) / (1000 if state_attr('%4', 'unit_of_measurement') == 'Wh' else 1)) | round(1) }}}"
+            "\"daily_consumption_kwh\": {{ (states('%4') | float(0) / (1000 if state_attr('%4', 'unit_of_measurement') == 'Wh' else 1)) | round(1) }}, "
+            "\"grid_export_power_kw\": {{ (states('sensor.grid_export_power') | float(0) / (1000 if state_attr('sensor.grid_export_power', 'unit_of_measurement') == 'W' else 1)) | round(2) }}}"
         ).arg(activeGen, activeLoad, activeDailyGen, activeDailyLoad);
 
         QJsonObject bodyObj;
@@ -363,6 +364,25 @@ void SolarController::onReplyFinished(QNetworkReply *reply)
         m_netText = QStringLiteral("%1 kW").arg(QString::number(std::abs(diff), 'f', 1));
     } else {
         m_netText = QStringLiteral("0.0 kW");
+    }
+
+    double exportKw = 0.0;
+    if (obj.contains(QStringLiteral("grid_export_power_kw"))
+        && obj.value(QStringLiteral("grid_export_power_kw")).toDouble(0.0) > 0.0) {
+        exportKw = parseJsonDouble(obj.value(QStringLiteral("grid_export_power_kw")));
+    } else {
+        exportKw = std::max(0.0, diff);
+    }
+
+    if (exportKw > 4.0 && !m_hasNotifiedPeakSolar) {
+        m_hasNotifiedPeakSolar = true;
+        QProcess::startDetached(QStringLiteral("notify-send"),
+            QStringList() << QStringLiteral("-u") << QStringLiteral("normal")
+                          << QStringLiteral("-a") << QStringLiteral("CatchyPills")
+                          << QStringLiteral("Peak Solar Active")
+                          << QStringLiteral("Exporting > 4kW. Good time to run heavy appliances."));
+    } else if (exportKw < 2.0) {
+        m_hasNotifiedPeakSolar = false;
     }
 
     m_available = true;

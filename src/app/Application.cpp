@@ -25,11 +25,14 @@
 #include <QDesktopServices>
 #include <QIcon>
 #include <QMenu>
+#include <QNetworkAccessManager>
+#include <QNetworkRequest>
 #include <QPainter>
 #include <QPixmap>
 #include <QQmlApplicationEngine>
 #include <QQmlComponent>
 #include <QQmlContext>
+#include <QQmlNetworkAccessManagerFactory>
 #include <QQuickWindow>
 #include <QSystemTrayIcon>
 #include <QTimer>
@@ -37,6 +40,54 @@
 #include <QUrlQuery>
 
 namespace catchypills::app {
+
+namespace {
+
+class HaNetworkAccessManager : public QNetworkAccessManager
+{
+public:
+    explicit HaNetworkAccessManager(const QString &token, QObject *parent = nullptr)
+        : QNetworkAccessManager(parent), m_token(token) {}
+
+protected:
+    QNetworkReply *createRequest(Operation op, const QNetworkRequest &request, QIODevice *outgoingData = nullptr) override
+    {
+        QNetworkRequest req = request;
+        if (!m_token.isEmpty() && req.url().toString().contains(QLatin1String(":8123"))) {
+            if (!req.hasRawHeader("Authorization")) {
+                req.setRawHeader("Authorization", QStringLiteral("Bearer %1").arg(m_token).toUtf8());
+            }
+        }
+        return QNetworkAccessManager::createRequest(op, req, outgoingData);
+    }
+
+private:
+    QString m_token;
+};
+
+class HaNetworkAccessManagerFactory : public QQmlNetworkAccessManagerFactory
+{
+public:
+    explicit HaNetworkAccessManagerFactory(const ConfigManager *config)
+        : m_config(config) {}
+
+    QNetworkAccessManager *create(QObject *parent) override
+    {
+        QString token;
+        if (m_config) {
+            token = m_config->envValue(QStringLiteral("IOT_API_KEY")).trimmed();
+        }
+        if (token.isEmpty()) {
+            token = QString::fromUtf8(qgetenv("IOT_API_KEY")).trimmed();
+        }
+        return new HaNetworkAccessManager(token, parent);
+    }
+
+private:
+    const ConfigManager *m_config{nullptr};
+};
+
+} // namespace
 
 namespace {
 QIcon makePillTrayIcon()
@@ -89,6 +140,7 @@ bool Application::initialize()
     m_islandLayer = new wayland::LayerSurfaceController(nullptr, this);
     m_overlayLayer = new wayland::LayerSurfaceController(nullptr, this);
     m_engine = new QQmlApplicationEngine(this);
+    m_engine->setNetworkAccessManagerFactory(new HaNetworkAccessManagerFactory(m_configManager));
 
     m_captureCoordinator->setOutputDirectory(m_configManager->screenshotsDir());
     m_captureCoordinator->setAutoCopyEnabled(m_configManager->autoCopyCapture());

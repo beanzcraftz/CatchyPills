@@ -42,6 +42,7 @@ class SolarController final : public QObject
     Q_PROPERTY(QString bluettiOutputPowerText READ bluettiOutputPowerText NOTIFY telemetryUpdated)
     Q_PROPERTY(double bluettiInputWatts READ bluettiInputWatts NOTIFY telemetryUpdated)
     Q_PROPERTY(double bluettiOutputWatts READ bluettiOutputWatts NOTIFY telemetryUpdated)
+    Q_PROPERTY(bool hasNotifiedPeakSolar READ hasNotifiedPeakSolar NOTIFY telemetryUpdated)
 
 public:
     static constexpr int kDefaultPollIntervalMs = 15000;
@@ -68,6 +69,7 @@ public:
     QString bluettiOutputPowerText() const { return m_bluettiOutputPowerText; }
     double bluettiInputWatts() const noexcept { return m_bluettiInputWatts; }
     double bluettiOutputWatts() const noexcept { return m_bluettiOutputWatts; }
+    bool hasNotifiedPeakSolar() const noexcept { return m_hasNotifiedPeakSolar; }
 
     Q_INVOKABLE void setEnabled(bool enabled);
     Q_INVOKABLE void refresh();
@@ -102,6 +104,7 @@ private:
     int m_batteryPercentage{100};
     bool m_hasBattery{false};
     bool m_hasNotifiedLowBattery{false};
+    bool m_hasNotifiedPeakSolar{false};
     QString m_bluettiInputPowerText{QStringLiteral("In: 0W")};
     QString m_bluettiOutputPowerText{QStringLiteral("Out: 0W")};
     double m_bluettiInputWatts{0.0};

@@ -11,7 +11,7 @@ import QtQuick.Layouts
 Item {
     id: root
 
-    property int activeTab: 0 // 0 = Clipboard, 1 = IoT, 2 = Media, 3 = Notes, 4 = Search, 5 = Capture, 6 = ITSM
+    property int activeTab: 0 // 0 = Clipboard, 1 = IoT, 2 = Cameras, 3 = Media, 4 = Notes, 5 = Search, 6 = Capture, 7 = ITSM
     readonly property bool searchInputFocused: searchPaletteView.inputFocused || notesView.inputFocused || itsmView.inputFocused
     readonly property bool weatherPopupOpen: forecastPopup.opened
 
@@ -23,7 +23,7 @@ Item {
             }
         }
         function onEnableITSMChanged() {
-            if (!configManager.enableITSM && root.activeTab === 6) {
+            if (!configManager.enableITSM && root.activeTab === 7) {
                 root.activeTab = 0
             }
         }
@@ -37,7 +37,7 @@ Item {
     }
 
     function focusSearch() {
-        activeTab = 4
+        activeTab = 5
         searchPaletteView.focusInput()
     }
 
@@ -122,6 +122,7 @@ Item {
                 model: [
                     { label: "Clipboard", tip: "Recent clipboard history captured securely over Wayland" },
                     { label: "IoT", tip: "Trigger Alexa & workshop smart device controls" },
+                    { label: "Cameras", tip: "Live acreage camera feeds (Carport & Driveway)" },
                     { label: "Media", tip: "SpotiBar MPRIS2 playback controls & animated equalizer" },
                     { label: "Notes", tip: "Quick persistent SQLite To-Do notes & thoughts" },
                     { label: "Search", tip: "Search indexed local files or query DuckDuckGo on the web" },
@@ -135,9 +136,9 @@ Item {
                     required property var modelData
                     readonly property bool selected: root.activeTab === index
 
-                    visible: (index === 1 && configManager.enableIoT)
-                             || (index === 6 && configManager.enableITSM)
-                             || (index !== 1 && index !== 6)
+                    visible: (modelData.label === "IoT" && configManager.enableIoT)
+                             || (modelData.label === "ITSM" && configManager.enableITSM)
+                             || (modelData.label !== "IoT" && modelData.label !== "ITSM")
                     implicitWidth: tabLabel.implicitWidth + 14
                     implicitHeight: 32
 
@@ -719,19 +720,24 @@ Item {
                     visible: configManager.enableIoT
                 }
 
-            // 2. SpotiBar MediaView
-            MediaView {
-                id: mediaView
-            }
+                // 2. Acreage Camera Feeds
+                CameraTab {
+                    id: cameraTab
+                }
 
-            // 3. Persistent NotesView
-            NotesView {
-                id: notesView
-                onCollapseRequested: root.collapseRequested()
-            }
+                // 3. SpotiBar MediaView
+                MediaView {
+                    id: mediaView
+                }
 
-            // 4. Unified SearchPaletteView (Local Files | Web Search)
-            SearchPaletteView {
+                // 4. Persistent NotesView
+                NotesView {
+                    id: notesView
+                    onCollapseRequested: root.collapseRequested()
+                }
+
+                // 5. Unified SearchPaletteView (Local Files | Web Search)
+                SearchPaletteView {
                 id: searchPaletteView
                 onCollapseRequested: root.collapseRequested()
                 onCollapseImmediatelyRequested: root.collapseImmediatelyRequested()
