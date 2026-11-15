@@ -40,6 +40,10 @@ namespace catchypills::peripheral {
 class PeripheralController;
 }
 
+namespace catchypills::shortcut {
+class ShortcutController;
+}
+
 namespace catchypills::solar {
 class SolarController;
 }
@@ -86,10 +90,12 @@ public:
     Q_INVOKABLE void openSettings();
     Q_INVOKABLE void openEnvFile();
     Q_INVOKABLE void toggleIslandVisible();
+    Q_INVOKABLE void toggle();
     Q_INVOKABLE void openWebSearch(const QString &query);
 
 Q_SIGNALS:
     void daemonOnlineChanged(bool online);
+    void toggleVisibility();
 
 private Q_SLOTS:
     void onDaemonRegistered(const QString &serviceName);
@@ -115,6 +121,7 @@ private:
     media::MprisController *m_mprisController{nullptr};
     notes::NotesModel *m_notesModel{nullptr};
     peripheral::PeripheralController *m_peripheralController{nullptr};
+    shortcut::ShortcutController *m_shortcutController{nullptr};
     solar::SolarController *m_solarController{nullptr};
     sysmon::SysMonController *m_sysMonController{nullptr};
     weather::WeatherController *m_weatherController{nullptr};

@@ -58,6 +58,8 @@ qt_add_executable(catchypills
     src/modules/notes/NotesModel.cpp
     src/modules/peripheral/PeripheralController.hpp
     src/modules/peripheral/PeripheralController.cpp
+    src/modules/shortcut/ShortcutController.hpp
+    src/modules/shortcut/ShortcutController.cpp
     src/modules/solar/SolarController.hpp
     src/modules/solar/SolarController.cpp
     src/modules/sysmon/SysMonController.hpp

@@ -9,15 +9,113 @@ Window {
     // zwlr_layer_surface_v1 configure/ack resize roundtrips per animation frame.
     width: 760
     height: 460
+    y: -height
     visible: false
     color: "transparent"
     flags: Qt.FramelessWindowHint
 
     readonly property bool hasLayer: typeof layerController !== "undefined" && layerController !== null
+    property real lastToggleTime: 0
 
     onVisibleChanged: {
         if (visible) {
             pillContainer.syncMask()
+        }
+    }
+
+    onYChanged: {
+        if (!showAnimation.running && !hideAnimation.running) {
+            pillContainer.syncMask()
+        }
+    }
+
+    NumberAnimation {
+        id: showAnimation
+        target: root
+        property: "y"
+        to: 0
+        duration: 300
+        easing.type: Easing.OutCubic
+        onStarted: {
+            if (root.hasLayer) {
+                layerController.dragActive = true
+            }
+        }
+        onFinished: {
+            if (root.hasLayer) {
+                layerController.dragActive = false
+            }
+            pillContainer.syncMask()
+            idleTimer.restart()
+        }
+    }
+
+    NumberAnimation {
+        id: hideAnimation
+        target: root
+        property: "y"
+        to: -root.height
+        duration: 250
+        easing.type: Easing.InCubic
+        onStarted: {
+            idleTimer.stop()
+            if (root.hasLayer) {
+                layerController.dragActive = true
+            }
+        }
+        onFinished: {
+            if (root.hasLayer) {
+                layerController.dragActive = false
+                layerController.setKeyboardInteractive(false)
+            }
+            pillContainer.state = "collapsed"
+            dashboard.closePopups()
+            pillContainer.syncMask()
+        }
+    }
+
+    Timer {
+        id: idleTimer
+        interval: 5000
+        running: false
+        repeat: false
+        onTriggered: {
+            if (dashboard.searchInputFocused || dashboard.weatherPopupOpen) {
+                idleTimer.restart()
+                return
+            }
+            hideAnimation.start()
+        }
+    }
+
+    function toggleWindow() {
+        var now = Date.now()
+        if (now - lastToggleTime < 250) {
+            return
+        }
+        lastToggleTime = now
+
+        if (root.y >= 0 || showAnimation.running) {
+            showAnimation.stop()
+            idleTimer.stop()
+            hideAnimation.start()
+        } else {
+            hideAnimation.stop()
+            showAnimation.start()
+        }
+    }
+
+    Connections {
+        target: appController
+        function onToggleVisibility() {
+            root.toggleWindow()
+        }
+    }
+
+    Connections {
+        target: shortcutController
+        function onToggleVisibility() {
+            root.toggleWindow()
         }
     }
 
@@ -59,9 +157,31 @@ Window {
         repeat: false
     }
 
+    MouseArea {
+        id: idleDetector
+        anchors.fill: parent
+        hoverEnabled: true
+        acceptedButtons: Qt.NoButton
+        propagateComposedEvents: true
+
+        onPositionChanged: {
+            if (root.y >= 0) {
+                idleTimer.restart()
+            }
+        }
+        onContainsMouseChanged: {
+            if (root.y >= 0) {
+                idleTimer.restart()
+            }
+        }
+    }
+
     Item {
         id: rootCanvas
-        anchors.fill: parent
+        width: parent.width
+        height: parent.height
+        x: 0
+        y: root.hasLayer ? root.y : 0
 
         RectangularShadow {
             id: pillShadow
@@ -126,8 +246,17 @@ Window {
 
             function syncMask() {
                 if (root.hasLayer) {
+                    if (root.y <= -root.height) {
+                        layerController.updateInputRegion(Qt.rect(0, 0, 0, 0), 0)
+                        return
+                    }
+                    const curY = pillContainer.y + (root.hasLayer ? root.y : 0)
+                    if (curY + pillContainer.height <= 0) {
+                        layerController.updateInputRegion(Qt.rect(0, 0, 0, 0), 0)
+                        return
+                    }
                     layerController.updateInputRegion(
-                        Qt.rect(Math.round(x), Math.round(y), Math.round(width), Math.round(height)),
+                        Qt.rect(Math.round(x), Math.round(curY), Math.round(width), Math.round(height)),
                         bottomLeftRadius
                     )
                 }
@@ -138,6 +267,9 @@ Window {
             HoverHandler {
                 id: islandHover
                 onHoveredChanged: {
+                    if (root.y >= 0) {
+                        idleTimer.restart()
+                    }
                     if (hovered) {
                         collapseDelay.stop()
                         if (!collapsedHud.repositioning && pillContainer.state !== "expanded") {

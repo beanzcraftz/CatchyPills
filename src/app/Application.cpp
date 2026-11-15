@@ -8,6 +8,7 @@
 #include "modules/media/MprisController.hpp"
 #include "modules/notes/NotesModel.hpp"
 #include "modules/peripheral/PeripheralController.hpp"
+#include "modules/shortcut/ShortcutController.hpp"
 #include "modules/solar/SolarController.hpp"
 #include "modules/sysmon/SysMonController.hpp"
 #include "modules/weather/WeatherController.hpp"
@@ -132,6 +133,9 @@ bool Application::initialize()
     m_mprisController = new media::MprisController(this);
     m_notesModel = new notes::NotesModel(this);
     m_peripheralController = new peripheral::PeripheralController(this);
+    m_shortcutController = new shortcut::ShortcutController(this);
+    connect(m_shortcutController, &shortcut::ShortcutController::toggleVisibility,
+            this, &Application::toggleVisibility);
     m_solarController = new solar::SolarController(m_configManager, this);
     m_sysMonController = new sysmon::SysMonController(this);
     m_weatherController = new weather::WeatherController(m_configManager, this);
@@ -194,6 +198,7 @@ bool Application::initialize()
     m_engine->rootContext()->setContextProperty(QStringLiteral("mprisController"), m_mprisController);
     m_engine->rootContext()->setContextProperty(QStringLiteral("notesModel"), m_notesModel);
     m_engine->rootContext()->setContextProperty(QStringLiteral("peripheralController"), m_peripheralController);
+    m_engine->rootContext()->setContextProperty(QStringLiteral("shortcutController"), m_shortcutController);
     m_engine->rootContext()->setContextProperty(QStringLiteral("solarController"), m_solarController);
     m_engine->rootContext()->setContextProperty(QStringLiteral("sysMonController"), m_sysMonController);
     m_engine->rootContext()->setContextProperty(QStringLiteral("weatherController"), m_weatherController);
@@ -318,15 +323,12 @@ void Application::openEnvFile()
 
 void Application::toggleIslandVisible()
 {
-    if (!m_islandWindow) {
-        return;
-    }
-    if (m_islandWindow->isVisible()) {
-        m_islandWindow->hide();
-    } else {
-        m_islandWindow->show();
-        m_islandWindow->raise();
-    }
+    Q_EMIT toggleVisibility();
+}
+
+void Application::toggle()
+{
+    Q_EMIT toggleVisibility();
 }
 
 void Application::openWebSearch(const QString &query)
