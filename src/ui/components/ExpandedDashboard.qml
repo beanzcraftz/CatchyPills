@@ -139,7 +139,7 @@ Item {
                     visible: (modelData.label === "IoT" && configManager.enableIoT)
                              || (modelData.label === "ITSM" && configManager.enableITSM)
                              || (modelData.label !== "IoT" && modelData.label !== "ITSM")
-                    implicitWidth: tabLabel.implicitWidth + 14
+                    implicitWidth: tabLabel.implicitWidth + 12
                     implicitHeight: 32
 
                     RectangularShadow {
@@ -177,7 +177,7 @@ Item {
                             id: tabLabel
                             anchors.centerIn: parent
                             color: tabItem.selected ? "#00e5a3" : "#cbd5e1"
-                            font.pixelSize: 12
+                            font.pixelSize: 11
                             font.weight: tabItem.selected ? Font.DemiBold : Font.Normal
                             text: tabItem.modelData.label
                         }
@@ -190,12 +190,14 @@ Item {
                                 if (tabItem.index === 0) {
                                     daemonClient.refreshClips()
                                 } else if (tabItem.index === 2) {
-                                    mprisController.refresh()
+                                    cameraTab.refreshCameras()
                                 } else if (tabItem.index === 3) {
-                                    notesView.focusInput()
+                                    mprisController.refresh()
                                 } else if (tabItem.index === 4) {
+                                    notesView.focusInput()
+                                } else if (tabItem.index === 5) {
                                     searchPaletteView.focusInput()
-                                } else if (tabItem.index === 6) {
+                                } else if (tabItem.index === 7) {
                                     itsmView.focusInput()
                                 }
                             }
@@ -210,7 +212,7 @@ Item {
             Item {
                 id: solarPillItem
                 visible: configManager.enableSolar
-                implicitWidth: solarRow.implicitWidth + 16
+                implicitWidth: solarRow.implicitWidth + 12
                 implicitHeight: 32
 
                 readonly property color telemetryColor:
@@ -256,12 +258,12 @@ Item {
                     Row {
                         id: solarRow
                         anchors.centerIn: parent
-                        spacing: 6
+                        spacing: 4
 
                         Label {
                             anchors.verticalCenter: parent.verticalCenter
                             color: solarPillItem.telemetryColor
-                            font.pixelSize: 11
+                            font.pixelSize: 10
                             font.weight: Font.DemiBold
                             text: "☀️ " + solarController.generationText
                         }
@@ -269,7 +271,7 @@ Item {
                         Label {
                             anchors.verticalCenter: parent.verticalCenter
                             color: solarPillItem.telemetryColor
-                            font.pixelSize: 11
+                            font.pixelSize: 10
                             font.weight: Font.DemiBold
                             text: "🏠 " + solarController.consumptionText
                         }
@@ -277,7 +279,7 @@ Item {
                         Label {
                             anchors.verticalCenter: parent.verticalCenter
                             color: solarController.batteryPercentage < 15 ? "#FF4C4C" : solarPillItem.telemetryColor
-                            font.pixelSize: 11
+                            font.pixelSize: 10
                             font.weight: Font.DemiBold
                             text: "🔋 " + solarController.batteryPercentage + "%"
                         }
@@ -300,7 +302,7 @@ Item {
             // Local Home Assistant weather badge + 7-day forecast popup
             Item {
                 id: weatherPillItem
-                implicitWidth: weatherRow.implicitWidth + 18
+                implicitWidth: weatherRow.implicitWidth + 14
                 implicitHeight: 32
 
                 RectangularShadow {
@@ -332,18 +334,18 @@ Item {
                     Row {
                         id: weatherRow
                         anchors.centerIn: parent
-                        spacing: 5
+                        spacing: 4
 
                         Label {
                             anchors.verticalCenter: parent.verticalCenter
-                            font.pixelSize: 13
+                            font.pixelSize: 12
                             text: root.mapWeatherIcon(weatherController.weatherState)
                         }
 
                         Label {
                             anchors.verticalCenter: parent.verticalCenter
                             color: "#e2e8f0"
-                            font.pixelSize: 12
+                            font.pixelSize: 11
                             font.weight: Font.Medium
                             text: weatherController.weatherTemp
                         }

@@ -7,8 +7,8 @@ Window {
     // Fixed transparent canvas sized to maximum expanded island bounds + shadow margin.
     // Animating pillContainer inside this fixed LayerShell surface avoids KWin
     // zwlr_layer_surface_v1 configure/ack resize roundtrips per animation frame.
-    width: 760
-    height: 460
+    width: 920
+    height: 480
     y: -height
     visible: false
     color: "transparent"
@@ -188,11 +188,11 @@ Window {
             state: "collapsed"
             onStateChanged: if (state === "collapsed") dashboard.closePopups()
 
-            readonly property int expandedWidth: configManager.enableWorklog ? 732 : 660
-            readonly property int collapsedX: root.hasLayer ? layerController.pillCanvasX : 220
+            readonly property int expandedWidth: configManager.enableWorklog ? 880 : 840
+            readonly property int collapsedX: root.hasLayer ? layerController.pillCanvasX : 300
             readonly property int collapsedY: root.hasLayer ? layerController.pillCanvasY : 0
             readonly property int expandedX: Math.max(0, Math.min(collapsedX - Math.round((expandedWidth - collapsedHud.implicitWidth) / 2), root.width - expandedWidth))
-            readonly property int expandedY: Math.min(collapsedY, root.height - 390)
+            readonly property int expandedY: Math.min(collapsedY, root.height - 410)
             readonly property bool detachedFromTop: root.hasLayer && layerController.pillY > 4
 
             x: collapsedX

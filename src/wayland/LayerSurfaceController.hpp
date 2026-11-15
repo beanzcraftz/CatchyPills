@@ -129,7 +129,7 @@ public:
      */
     Q_INVOKABLE void setKeyboardInteractive(bool interactive);
 
-    static constexpr QSize kDefaultCanvasSize{760, 460};
+    static constexpr QSize kDefaultCanvasSize{920, 480};
     static constexpr QSize kCollapsedPillSize{320, 36};
 
 Q_SIGNALS:

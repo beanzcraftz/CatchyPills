@@ -451,7 +451,7 @@ void LayerSurfaceController::updateInputRegion(const QRect &pillRect, int corner
     }
 
     if (m_dragActive) {
-        // Bypass tight QWindow::setMask() so the entire 760x460 wl_surface
+        // Bypass tight QWindow::setMask() so the entire 920x480 wl_surface
         // accepts Wayland pointer and drag events during the animation, and
         // avoid re-issuing setMask() on every animation frame.
         if (!m_maskBypassed) {
