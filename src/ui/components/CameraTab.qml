@@ -26,6 +26,9 @@ Item {
     readonly property string drivewayEntity: (typeof configManager !== "undefined" && configManager)
         ? configManager.envValue("CAM_DRIVEWAY_ENTITY", "camera.driveway")
         : "camera.driveway"
+    readonly property string shedEntity: (typeof configManager !== "undefined" && configManager)
+        ? configManager.envValue("CAM_SHED_ENTITY", "camera.shed_indoorcam_live")
+        : "camera.shed_indoorcam_live"
 
     property double refreshTimestamp: Date.now()
     property bool refreshing: false
@@ -35,10 +38,14 @@ Item {
     property bool drivewaySolarCharging: false
     property bool carportMotion: false
     property bool drivewayMotion: false
+    property bool shedMotion: false
+    property bool shedPerson: false
+    property bool shedPet: false
     property string lastUpdatedText: ""
 
     readonly property string carportUrl: root.haBaseUrl + "/api/camera_proxy/" + root.carportEntity + "?t=" + root.refreshTimestamp
     readonly property string drivewayUrl: root.haBaseUrl + "/api/camera_proxy/" + root.drivewayEntity + "?t=" + root.refreshTimestamp
+    readonly property string shedUrl: root.haBaseUrl + "/api/camera_proxy/" + root.shedEntity + "?t=" + root.refreshTimestamp
 
     function refreshCameras() {
         if (root.refreshing) {
@@ -95,6 +102,12 @@ Item {
                             root.carportMotion = (item.state === "on")
                         } else if (item.entity_id === "binary_sensor.driveway_motion") {
                             root.drivewayMotion = (item.state === "on")
+                        } else if (item.entity_id === "binary_sensor.shed_shed_inside_motion") {
+                            root.shedMotion = (item.state === "on")
+                        } else if (item.entity_id === "binary_sensor.shed_shed_inside_person") {
+                            root.shedPerson = (item.state === "on")
+                        } else if (item.entity_id === "binary_sensor.shed_shed_inside_pet") {
+                            root.shedPet = (item.state === "on")
                         }
                     }
                     var now = new Date()
@@ -177,7 +190,7 @@ Item {
                         font.pixelSize: 9
                         text: root.lastUpdatedText !== ""
                               ? "Live HA camera proxy • Updated " + root.lastUpdatedText
-                              : "Live Home Assistant camera proxy (Carport & Driveway)"
+                              : "Live Home Assistant camera proxy (Carport, Driveway & Shed Inside)"
                     }
                 }
 
@@ -496,6 +509,140 @@ Item {
                                 color: "#94a3b8"
                                 font.pixelSize: 11
                                 text: "Driveway Feed Standby"
+                            }
+
+                            Label {
+                                Layout.alignment: Qt.AlignHCenter
+                                color: "#64748b"
+                                font.pixelSize: 9
+                                text: "Click Refresh to wake camera proxy"
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Container 3: Shed Inside
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                radius: 12
+                color: Qt.rgba(0.10, 0.12, 0.18, 0.76)
+                border.width: 1
+                border.color: Qt.rgba(1, 1, 1, 0.12)
+                clip: true
+
+                ColumnLayout {
+                    anchors.fill: parent
+                    anchors.margins: 8
+                    spacing: 6
+
+                    // Feed Top Strip
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 6
+
+                        Rectangle {
+                            implicitWidth: 7
+                            implicitHeight: 7
+                            radius: 3.5
+                            color: shedImg.status === Image.Ready ? "#00e5a3" : "#f59e0b"
+                        }
+
+                        Label {
+                            color: "#f8fafc"
+                            font.pixelSize: 11
+                            font.weight: Font.DemiBold
+                            text: "Shed Inside"
+                        }
+
+                        Label {
+                            visible: root.shedPerson || root.shedMotion
+                            color: "#f59e0b"
+                            font.pixelSize: 9
+                            font.weight: Font.DemiBold
+                            text: root.shedPerson ? "👤 PERSON" : (root.shedPet ? "🐾 PET" : "🚶 MOTION")
+                        }
+
+                        Item { Layout.fillWidth: true }
+
+                        // Telemetry badge (mains 240V / 2K RTSP)
+                        Rectangle {
+                            implicitWidth: shedMetaRow.implicitWidth + 8
+                            implicitHeight: 18
+                            radius: 5
+                            color: Qt.rgba(1, 1, 1, 0.08)
+                            border.width: 1
+                            border.color: Qt.rgba(1, 1, 1, 0.10)
+
+                            RowLayout {
+                                id: shedMetaRow
+                                anchors.centerIn: parent
+                                spacing: 4
+
+                                Label {
+                                    font.pixelSize: 9
+                                    color: "#38bdf8"
+                                    text: "⚡ MAINS"
+                                }
+
+                                Label {
+                                    font.pixelSize: 9
+                                    color: "#00e5a3"
+                                    text: "2K RTSP"
+                                }
+                            }
+                        }
+
+                        Label {
+                            color: "#94a3b8"
+                            font.pixelSize: 9
+                            font.family: "monospace"
+                            text: root.refreshing ? "REFRESHING" : (shedImg.status === Image.Ready ? "LIVE" : "STANDBY")
+                        }
+                    }
+
+                    // Feed Viewport
+                    Rectangle {
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        radius: 8
+                        color: "#070a0e"
+                        border.width: 1
+                        border.color: Qt.rgba(1, 1, 1, 0.06)
+                        clip: true
+
+                        Image {
+                            id: shedImg
+                            anchors.fill: parent
+                            fillMode: Image.PreserveAspectFit
+                            asynchronous: true
+                            cache: false
+                            source: root.shedUrl
+                        }
+
+                        BusyIndicator {
+                            anchors.centerIn: parent
+                            running: shedImg.status === Image.Loading || root.refreshing
+                            visible: running
+                        }
+
+                        ColumnLayout {
+                            anchors.centerIn: parent
+                            visible: shedImg.status === Image.Error || shedImg.status === Image.Null
+                            spacing: 4
+
+                            Label {
+                                Layout.alignment: Qt.AlignHCenter
+                                font.pixelSize: 28
+                                text: "🛖"
+                            }
+
+                            Label {
+                                Layout.alignment: Qt.AlignHCenter
+                                color: "#94a3b8"
+                                font.pixelSize: 11
+                                text: "Shed Feed Standby"
                             }
 
                             Label {

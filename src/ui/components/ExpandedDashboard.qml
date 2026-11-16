@@ -126,7 +126,7 @@ Item {
                     { label: "ITSM", tip: "ServiceNow KB HTML template prompt generator" },
                     { label: "Capture", tip: "OmniShot region screenshots, annotations & screen recording" },
                     { label: "IoT", tip: "Trigger Alexa & workshop smart device controls" },
-                    { label: "Cameras", tip: "Live acreage camera feeds (Carport & Driveway)" }
+                    { label: "Cameras", tip: "Live acreage camera feeds (Carport, Driveway & Shed Inside)" }
                 ]
 
                 delegate: Item {
