@@ -47,6 +47,73 @@ Item {
     readonly property string drivewayUrl: root.haBaseUrl + "/api/camera_proxy/" + root.drivewayEntity + "?t=" + root.refreshTimestamp
     readonly property string shedUrl: root.haBaseUrl + "/api/camera_proxy/" + root.shedEntity + "?t=" + root.refreshTimestamp
 
+    // Pop-out Enlarged Preview Properties
+    property string popoutCamera: "" // "carport", "driveway", "shed" or ""
+    property bool popoutLocked: false
+    property string pendingPopoutCamera: ""
+
+    readonly property string popoutUrl: {
+        if (popoutCamera === "carport") return root.carportUrl
+        if (popoutCamera === "driveway") return root.drivewayUrl
+        if (popoutCamera === "shed") return root.shedUrl
+        return ""
+    }
+
+    readonly property string popoutTitle: {
+        if (popoutCamera === "carport") return "Carport Camera (1080p Live)"
+        if (popoutCamera === "driveway") return "Driveway Camera (1080p Live)"
+        if (popoutCamera === "shed") return "Shed Inside (2K RTSP Live)"
+        return ""
+    }
+
+    readonly property string popoutBadgeText: {
+        if (popoutCamera === "carport") {
+            var b = root.carportBattery !== "" ? ("🔋 " + root.carportBattery + "%") : "--%"
+            return (root.carportSolarCharging ? "☀️ CHG • " : "") + b
+        }
+        if (popoutCamera === "driveway") {
+            var b2 = root.drivewayBattery !== "" ? ("🔋 " + root.drivewayBattery + "%") : "--%"
+            return (root.drivewaySolarCharging ? "☀️ CHG • " : "") + b2
+        }
+        if (popoutCamera === "shed") {
+            return "⚡ MAINS • 2K RTSP"
+        }
+        return ""
+    }
+
+    readonly property string popoutMotionText: {
+        if (popoutCamera === "carport") return root.carportMotion ? "🚶 MOTION DETECTED" : ""
+        if (popoutCamera === "driveway") return root.drivewayMotion ? "🚶 MOTION DETECTED" : ""
+        if (popoutCamera === "shed") {
+            if (root.shedPerson) return "👤 PERSON DETECTED"
+            if (root.shedPet) return "🐾 PET DETECTED"
+            if (root.shedMotion) return "🚶 MOTION DETECTED"
+            return ""
+        }
+        return ""
+    }
+
+    function triggerHoverPopout(camId) {
+        if (root.popoutLocked && root.popoutCamera !== "") {
+            return
+        }
+        root.pendingPopoutCamera = camId
+        popoutDebounceTimer.restart()
+    }
+
+    function cancelHoverPopout(camId) {
+        if (root.popoutLocked) {
+            return
+        }
+        if (root.pendingPopoutCamera === camId) {
+            root.pendingPopoutCamera = ""
+            popoutDebounceTimer.stop()
+        }
+        if (root.popoutCamera === camId && !popoutOverlayHover.hovered) {
+            popoutCloseTimer.restart()
+        }
+    }
+
     function refreshCameras() {
         if (root.refreshing) {
             return
@@ -139,6 +206,28 @@ Item {
         running: root.visible
         repeat: true
         onTriggered: root.refreshCameras()
+    }
+
+    Timer {
+        id: popoutDebounceTimer
+        interval: 160
+        repeat: false
+        onTriggered: {
+            if (root.pendingPopoutCamera !== "") {
+                root.popoutCamera = root.pendingPopoutCamera
+            }
+        }
+    }
+
+    Timer {
+        id: popoutCloseTimer
+        interval: 180
+        repeat: false
+        onTriggered: {
+            if (!root.popoutLocked && !popoutOverlayHover.hovered) {
+                root.popoutCamera = ""
+            }
+        }
     }
 
     Component.onCompleted: {
@@ -246,13 +335,43 @@ Item {
 
             // Container 1: Carport
             Rectangle {
+                id: carportContainer
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 radius: 12
-                color: Qt.rgba(0.10, 0.12, 0.18, 0.76)
+                color: carportContainerHover.hovered
+                       ? Qt.rgba(0.12, 0.16, 0.24, 0.90)
+                       : Qt.rgba(0.10, 0.12, 0.18, 0.76)
                 border.width: 1
-                border.color: Qt.rgba(1, 1, 1, 0.12)
+                border.color: carportContainerHover.hovered
+                              ? "#00e5a3"
+                              : Qt.rgba(1, 1, 1, 0.12)
                 clip: true
+
+                HoverHandler {
+                    id: carportContainerHover
+                    onHoveredChanged: {
+                        if (hovered) {
+                            root.triggerHoverPopout("carport")
+                        } else {
+                            root.cancelHoverPopout("carport")
+                        }
+                    }
+                }
+
+                MouseArea {
+                    anchors.fill: parent
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: {
+                        if (root.popoutCamera === "carport" && root.popoutLocked) {
+                            root.popoutLocked = false
+                            root.popoutCamera = ""
+                        } else {
+                            root.popoutCamera = "carport"
+                            root.popoutLocked = true
+                        }
+                    }
+                }
 
                 ColumnLayout {
                     anchors.fill: parent
@@ -385,13 +504,43 @@ Item {
 
             // Container 2: Driveway
             Rectangle {
+                id: drivewayContainer
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 radius: 12
-                color: Qt.rgba(0.10, 0.12, 0.18, 0.76)
+                color: drivewayContainerHover.hovered
+                       ? Qt.rgba(0.12, 0.16, 0.24, 0.90)
+                       : Qt.rgba(0.10, 0.12, 0.18, 0.76)
                 border.width: 1
-                border.color: Qt.rgba(1, 1, 1, 0.12)
+                border.color: drivewayContainerHover.hovered
+                              ? "#00e5a3"
+                              : Qt.rgba(1, 1, 1, 0.12)
                 clip: true
+
+                HoverHandler {
+                    id: drivewayContainerHover
+                    onHoveredChanged: {
+                        if (hovered) {
+                            root.triggerHoverPopout("driveway")
+                        } else {
+                            root.cancelHoverPopout("driveway")
+                        }
+                    }
+                }
+
+                MouseArea {
+                    anchors.fill: parent
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: {
+                        if (root.popoutCamera === "driveway" && root.popoutLocked) {
+                            root.popoutLocked = false
+                            root.popoutCamera = ""
+                        } else {
+                            root.popoutCamera = "driveway"
+                            root.popoutLocked = true
+                        }
+                    }
+                }
 
                 ColumnLayout {
                     anchors.fill: parent
@@ -524,13 +673,43 @@ Item {
 
             // Container 3: Shed Inside
             Rectangle {
+                id: shedContainer
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 radius: 12
-                color: Qt.rgba(0.10, 0.12, 0.18, 0.76)
+                color: shedContainerHover.hovered
+                       ? Qt.rgba(0.12, 0.16, 0.24, 0.90)
+                       : Qt.rgba(0.10, 0.12, 0.18, 0.76)
                 border.width: 1
-                border.color: Qt.rgba(1, 1, 1, 0.12)
+                border.color: shedContainerHover.hovered
+                              ? "#00e5a3"
+                              : Qt.rgba(1, 1, 1, 0.12)
                 clip: true
+
+                HoverHandler {
+                    id: shedContainerHover
+                    onHoveredChanged: {
+                        if (hovered) {
+                            root.triggerHoverPopout("shed")
+                        } else {
+                            root.cancelHoverPopout("shed")
+                        }
+                    }
+                }
+
+                MouseArea {
+                    anchors.fill: parent
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: {
+                        if (root.popoutCamera === "shed" && root.popoutLocked) {
+                            root.popoutLocked = false
+                            root.popoutCamera = ""
+                        } else {
+                            root.popoutCamera = "shed"
+                            root.popoutLocked = true
+                        }
+                    }
+                }
 
                 ColumnLayout {
                     anchors.fill: parent
@@ -652,6 +831,188 @@ Item {
                                 text: "Click Refresh to wake camera proxy"
                             }
                         }
+                    }
+                }
+            }
+        }
+    }
+
+    // Pop-out Fullscreen/Enlarged Preview Overlay
+    Rectangle {
+        id: popoutOverlay
+        anchors.fill: parent
+        z: 999
+        radius: 12
+        color: Qt.rgba(0.04, 0.06, 0.10, 0.97)
+        border.width: 1
+        border.color: Qt.rgba(0.0, 0.90, 0.64, 0.45)
+        visible: opacity > 0.001
+        opacity: root.popoutCamera !== "" ? 1.0 : 0.0
+        scale: root.popoutCamera !== "" ? 1.0 : 0.96
+
+        Behavior on opacity {
+            NumberAnimation { duration: 160; easing.type: Easing.OutQuad }
+        }
+        Behavior on scale {
+            NumberAnimation { duration: 160; easing.type: Easing.OutCubic }
+        }
+
+        HoverHandler {
+            id: popoutOverlayHover
+            onHoveredChanged: {
+                if (hovered) {
+                    popoutCloseTimer.stop()
+                } else if (!root.popoutLocked) {
+                    popoutCloseTimer.restart()
+                }
+            }
+        }
+
+        ColumnLayout {
+            anchors.fill: parent
+            anchors.margins: 10
+            spacing: 8
+
+            // Popout Top Bar
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 8
+
+                Rectangle {
+                    implicitWidth: 8
+                    implicitHeight: 8
+                    radius: 4
+                    color: popoutLargeImg.status === Image.Ready ? "#00e5a3" : "#f59e0b"
+                }
+
+                Label {
+                    color: "#f8fafc"
+                    font.pixelSize: 13
+                    font.weight: Font.Bold
+                    text: root.popoutTitle
+                }
+
+                Label {
+                    visible: root.popoutMotionText !== ""
+                    color: "#f59e0b"
+                    font.pixelSize: 10
+                    font.weight: Font.DemiBold
+                    text: root.popoutMotionText
+                }
+
+                Item { Layout.fillWidth: true }
+
+                // Telemetry badge
+                Rectangle {
+                    implicitWidth: popoutBadgeTextLabel.implicitWidth + 12
+                    implicitHeight: 20
+                    radius: 6
+                    color: Qt.rgba(1, 1, 1, 0.08)
+                    border.width: 1
+                    border.color: Qt.rgba(1, 1, 1, 0.12)
+
+                    Label {
+                        id: popoutBadgeTextLabel
+                        anchors.centerIn: parent
+                        font.pixelSize: 10
+                        font.weight: Font.Medium
+                        color: "#38bdf8"
+                        text: root.popoutBadgeText
+                    }
+                }
+
+                // Popout status hint badge
+                Rectangle {
+                    implicitWidth: hintLabel.implicitWidth + 12
+                    implicitHeight: 20
+                    radius: 6
+                    color: Qt.rgba(0.0, 0.90, 0.64, 0.12)
+                    border.width: 1
+                    border.color: Qt.rgba(0.0, 0.90, 0.64, 0.30)
+
+                    Label {
+                        id: hintLabel
+                        anchors.centerIn: parent
+                        font.pixelSize: 10
+                        font.weight: Font.Medium
+                        color: "#00e5a3"
+                        text: root.popoutLocked ? "🔒 PINNED (Click to unpin)" : "🔍 POP-OUT VIEW"
+                    }
+                }
+
+                // Close button (✕)
+                Rectangle {
+                    Layout.preferredWidth: 24
+                    Layout.preferredHeight: 24
+                    radius: 12
+                    color: closeBtnHover.hovered ? Qt.rgba(1, 0.2, 0.2, 0.25) : Qt.rgba(1, 1, 1, 0.08)
+                    border.width: 1
+                    border.color: closeBtnHover.hovered ? "#ff4c4c" : Qt.rgba(1, 1, 1, 0.15)
+
+                    HoverHandler { id: closeBtnHover }
+
+                    Label {
+                        anchors.centerIn: parent
+                        text: "✕"
+                        color: closeBtnHover.hovered ? "#ff4c4c" : "#94a3b8"
+                        font.pixelSize: 12
+                        font.weight: Font.Bold
+                    }
+
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: {
+                            root.popoutLocked = false
+                            root.popoutCamera = ""
+                        }
+                    }
+                }
+            }
+
+            // Popout Viewport (Large 16:9 view)
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                radius: 10
+                color: "#05070a"
+                border.width: 1
+                border.color: Qt.rgba(1, 1, 1, 0.08)
+                clip: true
+
+                Image {
+                    id: popoutLargeImg
+                    anchors.fill: parent
+                    fillMode: Image.PreserveAspectFit
+                    asynchronous: true
+                    cache: false
+                    smooth: true
+                    mipmap: true
+                    source: root.popoutUrl
+                }
+
+                BusyIndicator {
+                    anchors.centerIn: parent
+                    running: popoutLargeImg.status === Image.Loading || root.refreshing
+                    visible: running
+                }
+
+                ColumnLayout {
+                    anchors.centerIn: parent
+                    visible: popoutLargeImg.status === Image.Error || popoutLargeImg.status === Image.Null
+                    spacing: 6
+
+                    Label {
+                        Layout.alignment: Qt.AlignHCenter
+                        font.pixelSize: 36
+                        text: "📹"
+                    }
+
+                    Label {
+                        Layout.alignment: Qt.AlignHCenter
+                        color: "#94a3b8"
+                        font.pixelSize: 12
+                        text: "Connecting to camera proxy stream..."
                     }
                 }
             }
