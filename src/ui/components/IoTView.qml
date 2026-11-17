@@ -21,10 +21,30 @@ Item {
     property bool lampState: false
     property bool outletState: false
     property bool fanState: false
-    property string climateMode: "cool"
-    property int climateTemp: 22
-    property string climateFanMode: "auto"
-    property string climateRoomTempText: ""
+
+    property string activeAc: "office" // "office" (Shed Gree AC) or "house" (Main House Mitsubishi 7.5kW)
+
+    // Gree AC (Office / Shed)
+    property string greeMode: "cool"
+    property real greeTemp: 22.0
+    property string greeFanMode: "auto"
+    property string greeRoomTempText: ""
+
+    // Mitsubishi AC (Main House 7.5kW)
+    property string mitsubishiMode: "cool"
+    property real mitsubishiTemp: 23.0
+    property string mitsubishiFanMode: "High"
+    property string mitsubishiRoomTempText: "22.5°C"
+
+    readonly property string activeAcMode: activeAc === "house" ? root.mitsubishiMode : root.greeMode
+    readonly property real activeAcTemp: activeAc === "house" ? root.mitsubishiTemp : root.greeTemp
+    readonly property string activeAcFanMode: activeAc === "house" ? root.mitsubishiFanMode : root.greeFanMode
+    readonly property string activeAcRoomTempText: activeAc === "house" ? root.mitsubishiRoomTempText : root.greeRoomTempText
+    readonly property string activeAcTargetEntity: activeAc === "house"
+        ? (typeof configManager !== "undefined" && configManager && configManager.envValue("IOT_ENTITY_MITSUBISHI_AC", "") !== ""
+           ? configManager.envValue("IOT_ENTITY_MITSUBISHI_AC") : "climate.melview_38_8d_3d_4b_c9_ae")
+        : (typeof configManager !== "undefined" && configManager && configManager.envValue("IOT_ENTITY_OFFICE_AC", "") !== ""
+           ? configManager.envValue("IOT_ENTITY_OFFICE_AC") : "climate.office_greeac")
 
     readonly property var switchDevices: {
         var list = [
@@ -63,16 +83,29 @@ Item {
                         } else if (item.entity_id === "fan.office_fan") {
                             root.fanState = (item.state === "on")
                         } else if (item.entity_id === "climate.office_greeac") {
-                            root.climateMode = item.state
+                            root.greeMode = item.state
                             if (item.attributes) {
                                 if (item.attributes.temperature !== undefined) {
-                                    root.climateTemp = Math.round(item.attributes.temperature)
+                                    root.greeTemp = item.attributes.temperature
                                 }
                                 if (item.attributes.current_temperature !== undefined) {
-                                    root.climateRoomTempText = Math.round(item.attributes.current_temperature) + "°C"
+                                    root.greeRoomTempText = Math.round(item.attributes.current_temperature) + "°C"
                                 }
                                 if (item.attributes.fan_mode !== undefined) {
-                                    root.climateFanMode = item.attributes.fan_mode
+                                    root.greeFanMode = item.attributes.fan_mode
+                                }
+                            }
+                        } else if (item.entity_id === "climate.melview_38_8d_3d_4b_c9_ae") {
+                            root.mitsubishiMode = item.state
+                            if (item.attributes) {
+                                if (item.attributes.temperature !== undefined) {
+                                    root.mitsubishiTemp = item.attributes.temperature
+                                }
+                                if (item.attributes.current_temperature !== undefined) {
+                                    root.mitsubishiRoomTempText = item.attributes.current_temperature + "°C"
+                                }
+                                if (item.attributes.fan_mode !== undefined) {
+                                    root.mitsubishiFanMode = item.attributes.fan_mode
                                 }
                             }
                         }
@@ -218,7 +251,7 @@ Item {
                                     color: acHover.hovered ? "#00e5a3" : "#f8fafc"
                                     font.pixelSize: 13
                                     font.weight: Font.DemiBold
-                                    text: "Gree AC"
+                                    text: root.activeAc === "house" ? "Mitsubishi AC" : "Gree AC"
                                 }
 
                                 Label {
@@ -226,29 +259,80 @@ Item {
                                     elide: Text.ElideRight
                                     color: "#94a3b8"
                                     font.pixelSize: 10
-                                    text: root.climateRoomTempText !== ""
-                                          ? ("Office Climate • " + root.climateRoomTempText)
-                                          : "Office Climate"
+                                    text: root.activeAc === "house"
+                                          ? (root.activeAcRoomTempText !== "" ? ("House 7.5kW • " + root.activeAcRoomTempText) : "House 7.5kW")
+                                          : (root.activeAcRoomTempText !== "" ? ("Office Climate • " + root.activeAcRoomTempText) : "Office Climate")
                                 }
                             }
 
                             Item { Layout.fillWidth: true }
 
+                            // AC Switcher: [ Shed | House ]
+                            RowLayout {
+                                spacing: 2
+
+                                Rectangle {
+                                    Layout.preferredWidth: 42
+                                    Layout.preferredHeight: 20
+                                    radius: 5
+                                    color: root.activeAc === "office" ? Qt.rgba(0.0, 0.90, 0.64, 0.22) : Qt.rgba(1, 1, 1, 0.06)
+                                    border.width: 1
+                                    border.color: root.activeAc === "office" ? "#00e5a3" : Qt.rgba(1, 1, 1, 0.12)
+
+                                    Label {
+                                        anchors.centerIn: parent
+                                        font.pixelSize: 9
+                                        font.weight: root.activeAc === "office" ? Font.Bold : Font.Normal
+                                        color: root.activeAc === "office" ? "#00e5a3" : "#94a3b8"
+                                        text: "Shed"
+                                    }
+
+                                    MouseArea {
+                                        anchors.fill: parent
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: root.activeAc = "office"
+                                    }
+                                }
+
+                                Rectangle {
+                                    Layout.preferredWidth: 46
+                                    Layout.preferredHeight: 20
+                                    radius: 5
+                                    color: root.activeAc === "house" ? Qt.rgba(0.0, 0.90, 0.64, 0.22) : Qt.rgba(1, 1, 1, 0.06)
+                                    border.width: 1
+                                    border.color: root.activeAc === "house" ? "#00e5a3" : Qt.rgba(1, 1, 1, 0.12)
+
+                                    Label {
+                                        anchors.centerIn: parent
+                                        font.pixelSize: 9
+                                        font.weight: root.activeAc === "house" ? Font.Bold : Font.Normal
+                                        color: root.activeAc === "house" ? "#00e5a3" : "#94a3b8"
+                                        text: "House"
+                                    }
+
+                                    MouseArea {
+                                        anchors.fill: parent
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: root.activeAc = "house"
+                                    }
+                                }
+                            }
+
                             Rectangle {
                                 Layout.preferredWidth: acModeBadgeLbl.implicitWidth + 12
-                                Layout.preferredHeight: 18
-                                radius: 6
-                                color: root.climateMode === "off" ? Qt.rgba(1, 1, 1, 0.06) : Qt.rgba(0.0, 0.90, 0.64, 0.18)
+                                Layout.preferredHeight: 20
+                                radius: 5
+                                color: root.activeAcMode === "off" ? Qt.rgba(1, 1, 1, 0.06) : Qt.rgba(0.0, 0.90, 0.64, 0.18)
                                 border.width: 1
-                                border.color: root.climateMode === "off" ? Qt.rgba(1, 1, 1, 0.12) : Qt.rgba(0.0, 0.90, 0.64, 0.45)
+                                border.color: root.activeAcMode === "off" ? Qt.rgba(1, 1, 1, 0.12) : Qt.rgba(0.0, 0.90, 0.64, 0.45)
 
                                 Label {
                                     id: acModeBadgeLbl
                                     anchors.centerIn: parent
-                                    color: root.climateMode === "off" ? "#94a3b8" : "#00e5a3"
+                                    color: root.activeAcMode === "off" ? "#94a3b8" : "#00e5a3"
                                     font.pixelSize: 9
                                     font.weight: Font.DemiBold
-                                    text: root.climateMode.toUpperCase()
+                                    text: root.activeAcMode.toUpperCase()
                                 }
                             }
                         }
@@ -269,7 +353,7 @@ Item {
                                 delegate: Rectangle {
                                     id: modeBtn
                                     required property var modelData
-                                    readonly property bool isActive: root.climateMode === modeBtn.modelData.mode
+                                    readonly property bool isActive: root.activeAcMode === modeBtn.modelData.mode
                                     Layout.fillWidth: true
                                     Layout.preferredHeight: 24
                                     radius: 6
@@ -300,8 +384,12 @@ Item {
                                         anchors.fill: parent
                                         cursorShape: Qt.PointingHandCursor
                                         onClicked: {
-                                            root.climateMode = modeBtn.modelData.mode
-                                            iotController.setClimateMode("climate.gree_ac", modeBtn.modelData.mode)
+                                            if (root.activeAc === "house") {
+                                                root.mitsubishiMode = modeBtn.modelData.mode
+                                            } else {
+                                                root.greeMode = modeBtn.modelData.mode
+                                            }
+                                            iotController.setClimateMode(root.activeAcTargetEntity, modeBtn.modelData.mode)
                                         }
                                     }
                                 }
@@ -339,9 +427,16 @@ Item {
                                     anchors.fill: parent
                                     cursorShape: Qt.PointingHandCursor
                                     onClicked: {
-                                        if (root.climateTemp > 16) {
-                                            root.climateTemp -= 1
-                                            iotController.setClimateTemperature("climate.gree_ac", root.climateTemp)
+                                        var step = root.activeAc === "house" ? 0.5 : 1.0
+                                        var minT = root.activeAc === "house" ? 16.0 : 16.0
+                                        if (root.activeAcTemp > minT) {
+                                            var newT = Math.round((root.activeAcTemp - step) * 2) / 2
+                                            if (root.activeAc === "house") {
+                                                root.mitsubishiTemp = newT
+                                            } else {
+                                                root.greeTemp = newT
+                                            }
+                                            iotController.setClimateTemperature(root.activeAcTargetEntity, newT)
                                         }
                                     }
                                 }
@@ -360,7 +455,9 @@ Item {
                                     color: "#00e5a3"
                                     font.pixelSize: 12
                                     font.weight: Font.Bold
-                                    text: root.climateTemp + "°C"
+                                    text: (root.activeAc === "house"
+                                          ? root.activeAcTemp.toFixed(1)
+                                          : Math.round(root.activeAcTemp)) + "°C"
                                 }
                             }
 
@@ -390,9 +487,16 @@ Item {
                                     anchors.fill: parent
                                     cursorShape: Qt.PointingHandCursor
                                     onClicked: {
-                                        if (root.climateTemp < 30) {
-                                            root.climateTemp += 1
-                                            iotController.setClimateTemperature("climate.gree_ac", root.climateTemp)
+                                        var step = root.activeAc === "house" ? 0.5 : 1.0
+                                        var maxT = root.activeAc === "house" ? 31.0 : 30.0
+                                        if (root.activeAcTemp < maxT) {
+                                            var newT = Math.round((root.activeAcTemp + step) * 2) / 2
+                                            if (root.activeAc === "house") {
+                                                root.mitsubishiTemp = newT
+                                            } else {
+                                                root.greeTemp = newT
+                                            }
+                                            iotController.setClimateTemperature(root.activeAcTargetEntity, newT)
                                         }
                                     }
                                 }
@@ -415,7 +519,7 @@ Item {
                                 delegate: Rectangle {
                                     id: fanBtn
                                     required property var modelData
-                                    readonly property bool isActive: root.climateFanMode === fanBtn.modelData.mode
+                                    readonly property bool isActive: root.activeAcFanMode.toLowerCase() === fanBtn.modelData.mode.toLowerCase()
                                     Layout.fillWidth: true
                                     Layout.preferredHeight: 22
                                     radius: 6
@@ -448,8 +552,16 @@ Item {
                                         anchors.fill: parent
                                         cursorShape: Qt.PointingHandCursor
                                         onClicked: {
-                                            root.climateFanMode = fanBtn.modelData.mode
-                                            iotController.setClimateFanMode("climate.gree_ac", fanBtn.modelData.mode)
+                                            var speed = fanBtn.modelData.mode
+                                            if (root.activeAc === "house") {
+                                                if (speed === "low") speed = "Low"
+                                                else if (speed === "medium") speed = "Medium"
+                                                else if (speed === "high") speed = "High"
+                                                root.mitsubishiFanMode = speed
+                                            } else {
+                                                root.greeFanMode = speed
+                                            }
+                                            iotController.setClimateFanMode(root.activeAcTargetEntity, speed)
                                         }
                                     }
                                 }

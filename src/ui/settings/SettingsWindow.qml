@@ -17,7 +17,8 @@ Window {
     property bool revealWorklogKey: false
     property string envFeedbackText: ""
     readonly property var iotTileSpecs: [
-        { key: "IOT_ENTITY_OFFICE_AC", label: "Gree AC", placeholder: "e.g. climate.shed_ac" },
+        { key: "IOT_ENTITY_OFFICE_AC", label: "Gree AC (Office)", placeholder: "e.g. climate.shed_ac" },
+        { key: "IOT_ENTITY_MITSUBISHI_AC", label: "Mitsubishi AC (House)", placeholder: "e.g. climate.melview_38_8d_3d_4b_c9_ae" },
         { key: "IOT_ENTITY_OFFICE_FAN", label: "Arlec Fan", placeholder: "e.g. fan.office_fan" },
         { key: "IOT_ENTITY_OFFICE_OUTLET", label: "Power Outlet", placeholder: "e.g. switch.office_socket" },
         { key: "IOT_ENTITY_OFFICE_LAMP", label: "Desk Lamp (Olamp)", placeholder: "e.g. light.office_olamp" }
