@@ -43,6 +43,8 @@ class SolarController final : public QObject
     Q_PROPERTY(double bluettiInputWatts READ bluettiInputWatts NOTIFY telemetryUpdated)
     Q_PROPERTY(double bluettiOutputWatts READ bluettiOutputWatts NOTIFY telemetryUpdated)
     Q_PROPERTY(bool hasNotifiedPeakSolar READ hasNotifiedPeakSolar NOTIFY telemetryUpdated)
+    Q_PROPERTY(QString tomorrowPeakTime READ tomorrowPeakTime NOTIFY telemetryUpdated)
+    Q_PROPERTY(QString tomorrowSolarKwh READ tomorrowSolarKwh NOTIFY telemetryUpdated)
 
 public:
     static constexpr int kDefaultPollIntervalMs = 15000;
@@ -70,6 +72,8 @@ public:
     double bluettiInputWatts() const noexcept { return m_bluettiInputWatts; }
     double bluettiOutputWatts() const noexcept { return m_bluettiOutputWatts; }
     bool hasNotifiedPeakSolar() const noexcept { return m_hasNotifiedPeakSolar; }
+    QString tomorrowPeakTime() const { return m_tomorrowPeakTime; }
+    QString tomorrowSolarKwh() const { return m_tomorrowSolarKwh; }
 
     Q_INVOKABLE void setEnabled(bool enabled);
     Q_INVOKABLE void refresh();
@@ -109,6 +113,8 @@ private:
     QString m_bluettiOutputPowerText{QStringLiteral("Out: 0W")};
     double m_bluettiInputWatts{0.0};
     double m_bluettiOutputWatts{0.0};
+    QString m_tomorrowPeakTime{QStringLiteral("--")};
+    QString m_tomorrowSolarKwh{QStringLiteral("--")};
     bool m_enabled{false};
     bool m_available{false};
     bool m_fetchInFlight{false};

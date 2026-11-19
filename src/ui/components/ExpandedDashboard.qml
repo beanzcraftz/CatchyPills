@@ -247,6 +247,9 @@ Item {
                                      + " • Use: " + solarController.consumptionText
                                      + "\nBluetti: " + solarController.batteryPercentage + "%"
                                      + (solarController.dailyGenerationText !== "" ? ("\nToday: " + solarController.dailyGenerationText + " gen • " + solarController.dailyConsumptionText + " load") : "")
+                                     + ((solarController.tomorrowPeakTime !== "--" || solarController.tomorrowSolarKwh !== "--")
+                                        ? ("\nTomorrow: Peak " + solarController.tomorrowPeakTime + " • " + solarController.tomorrowSolarKwh)
+                                        : "")
                                      + (solarController.lastUpdatedText !== "" ? ("\nUpdated " + solarController.lastUpdatedText) : ""))
                                   : (solarController.configured
                                      ? "Waiting for solar telemetry...\nClick to retry"

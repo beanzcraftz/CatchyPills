@@ -2,6 +2,7 @@
 
 #include "app/ConfigManager.hpp"
 
+#include <QDateTime>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QNetworkAccessManager>
@@ -112,6 +113,8 @@ void SolarController::reloadConfig()
         m_bluettiOutputPowerText = QStringLiteral("Out: 0W");
         m_bluettiInputWatts = 0.0;
         m_bluettiOutputWatts = 0.0;
+        m_tomorrowPeakTime = QStringLiteral("--");
+        m_tomorrowSolarKwh = QStringLiteral("--");
         Q_EMIT telemetryUpdated();
         return;
     }
@@ -265,7 +268,9 @@ void SolarController::refresh()
             "\"household_consumption_kw\": {{ (states('%2') | float(0) / (1000 if state_attr('%2', 'unit_of_measurement') == 'W' else 1)) | round(2) }}, "
             "\"daily_generation_kwh\": {{ (states('%3') | float(0) / (1000 if state_attr('%3', 'unit_of_measurement') == 'Wh' else 1)) | round(1) }}, "
             "\"daily_consumption_kwh\": {{ (states('%4') | float(0) / (1000 if state_attr('%4', 'unit_of_measurement') == 'Wh' else 1)) | round(1) }}, "
-            "\"grid_export_power_kw\": {{ (states('sensor.grid_export_power') | float(0) / (1000 if state_attr('sensor.grid_export_power', 'unit_of_measurement') == 'W' else 1)) | round(2) }}}"
+            "\"grid_export_power_kw\": {{ (states('sensor.grid_export_power') | float(0) / (1000 if state_attr('sensor.grid_export_power', 'unit_of_measurement') == 'W' else 1)) | round(2) }}, "
+            "\"tomorrow_peak_time\": \"{{ states('sensor.power_highest_peak_time_tomorrow') }}\", "
+            "\"tomorrow_energy_kwh\": \"{{ states('sensor.energy_production_tomorrow') }}\"}"
         ).arg(activeGen, activeLoad, activeDailyGen, activeDailyLoad);
 
         QJsonObject bodyObj;
@@ -383,6 +388,39 @@ void SolarController::onReplyFinished(QNetworkReply *reply)
                           << QStringLiteral("Exporting > 4kW. Good time to run heavy appliances."));
     } else if (exportKw < 2.0) {
         m_hasNotifiedPeakSolar = false;
+    }
+
+    if (obj.contains(QStringLiteral("tomorrow_peak_time"))) {
+        const QJsonValue peakVal = obj.value(QStringLiteral("tomorrow_peak_time"));
+        const QString rawState = peakVal.isString() ? peakVal.toString().trimmed() : QString();
+        if (rawState.isEmpty() || rawState == QLatin1String("unknown") || rawState == QLatin1String("unavailable")) {
+            m_tomorrowPeakTime = QStringLiteral("--");
+        } else {
+            const QDateTime dt = QDateTime::fromString(rawState, Qt::ISODate);
+            if (dt.isValid()) {
+                m_tomorrowPeakTime = dt.toLocalTime().toString(QStringLiteral("h:mm AP"));
+            } else {
+                m_tomorrowPeakTime = QStringLiteral("--");
+            }
+        }
+    }
+
+    if (obj.contains(QStringLiteral("tomorrow_energy_kwh"))) {
+        const QJsonValue energyVal = obj.value(QStringLiteral("tomorrow_energy_kwh"));
+        if (energyVal.isDouble()) {
+            m_tomorrowSolarKwh = QStringLiteral("%1 kWh").arg(QString::number(energyVal.toDouble(), 'f', 1));
+        } else if (energyVal.isString()) {
+            const QString rawEnergy = energyVal.toString().trimmed();
+            bool ok = false;
+            const double val = rawEnergy.toDouble(&ok);
+            if (ok && rawEnergy != QLatin1String("unknown") && rawEnergy != QLatin1String("unavailable")) {
+                m_tomorrowSolarKwh = QStringLiteral("%1 kWh").arg(QString::number(val, 'f', 1));
+            } else {
+                m_tomorrowSolarKwh = QStringLiteral("--");
+            }
+        } else {
+            m_tomorrowSolarKwh = QStringLiteral("--");
+        }
     }
 
     m_available = true;

@@ -173,6 +173,41 @@ Item {
                     text: iotController.statusText
                 }
 
+                // Compact Tomorrow's Solar Forecast Readout Pill
+                Rectangle {
+                    visible: solarController.available && (solarController.tomorrowPeakTime !== "--" || solarController.tomorrowSolarKwh !== "--")
+                    Layout.preferredHeight: 20
+                    Layout.preferredWidth: tomorrowForecastRow.implicitWidth + 14
+                    radius: 6
+                    color: tomorrowForecastHover.hovered ? Qt.rgba(0.96, 0.62, 0.04, 0.28) : Qt.rgba(0.96, 0.62, 0.04, 0.16)
+                    border.width: 1
+                    border.color: tomorrowForecastHover.hovered ? "#fbbf24" : Qt.rgba(0.96, 0.62, 0.04, 0.45)
+
+                    HoverHandler { id: tomorrowForecastHover }
+
+                    ToolTip.visible: tomorrowForecastHover.hovered
+                    ToolTip.delay: 300
+                    ToolTip.text: "Tomorrow's Solar Production Forecast\nPeak Solar Time: " + solarController.tomorrowPeakTime + "\nEst. Energy: " + solarController.tomorrowSolarKwh
+
+                    RowLayout {
+                        id: tomorrowForecastRow
+                        anchors.centerIn: parent
+                        spacing: 4
+
+                        Label {
+                            font.pixelSize: 10
+                            text: "☀️"
+                        }
+
+                        Label {
+                            font.pixelSize: 10
+                            font.weight: Font.DemiBold
+                            color: "#fbbf24"
+                            text: "Peak: " + solarController.tomorrowPeakTime + " • " + solarController.tomorrowSolarKwh
+                        }
+                    }
+                }
+
                 Rectangle {
                     Layout.preferredWidth: cfgLbl.implicitWidth + 14
                     Layout.preferredHeight: 20
@@ -822,8 +857,8 @@ Item {
                                     color: "#94a3b8"
                                     font.pixelSize: 10
                                     text: solarController.hasBattery
-                                          ? (solarController.batteryPercentage + "% Battery")
-                                          : "Power Station"
+                                          ? (solarController.batteryPercentage + "% Battery" + ((solarController.tomorrowPeakTime !== "--" || solarController.tomorrowSolarKwh !== "--") ? (" • Tomorrow: " + solarController.tomorrowSolarKwh) : ""))
+                                          : ((solarController.tomorrowPeakTime !== "--" || solarController.tomorrowSolarKwh !== "--") ? ("Tomorrow: " + solarController.tomorrowSolarKwh) : "Power Station")
                                 }
                             }
 
